@@ -1,0 +1,41 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g-grad" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8" />
+      <stop offset="0.5" stop-color="#818CF8" />
+      <stop offset="1" stop-color="#C084FC" />
+    </linearGradient>
+    <linearGradient id="tile-bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A" />
+      <stop offset="1" stop-color="#1E1B4B" />
+    </linearGradient>
+    <linearGradient id="tile-stroke" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8" stop-opacity="0.6" />
+      <stop offset="1" stop-color="#A855F7" stop-opacity="0.4" />
+    </linearGradient>
+  </defs>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="url(#tile-bg)" stroke="url(#tile-stroke)" stroke-width="1.2" />
+  <path
+    d="M22 10.5C20.3 8.3 17.6 7 14.5 7C9.8 7 6 10.8 6 15.5C6 20.2 9.8 24 14.5 24C19.2 24 23 20.2 23 15.5V15"
+    stroke="url(#g-grad)"
+    stroke-width="2.75"
+    stroke-linecap="round"
+  />
+  <path
+    d="M11 13L15 16L11 19"
+    stroke="#FFFFFF"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M17 19H21"
+    stroke="#38BDF8"
+    stroke-width="2.2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M24 5L24.8 7.2L27 8L24.8 8.8L24 11L23.2 8.8L21 8L23.2 7.2Z"
+    fill="#38BDF8"
+  />
+</svg>

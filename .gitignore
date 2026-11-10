@@ -1,0 +1,22 @@
+# secrets and local state: never commit these
+.env
+.env.*
+!.env.example
+.proxy_key
+*.key
+admin_token
+data/
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+*.bak
+*.log
+
+# build output and caches
+backend/.venv/
+__pycache__/
+.pytest_cache/
+frontend/node_modules/
+frontend/dist/
+.DS_Store

@@ -1,0 +1,27 @@
+services:
+  llm-cli-gateway:
+    image: llm-cli-gateway
+    container_name: llm-cli-gateway
+    build:
+      context: .
+      args:
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
+        EXTRA_NPM_CLIS: ${EXTRA_NPM_CLIS:-}
+        AGY_INSTALL_CMD: ${AGY_INSTALL_CMD:-}
+    env_file: .env
+    environment:
+      PROXY_HOST: 0.0.0.0        # inside the container; the host side is restricted below
+    ports:
+      - "127.0.0.1:8000:8000"    # localhost only. Put a TLS reverse proxy in front for anything else (docs/reverse-proxy.md)
+    volumes:
+      - proxy-data:/data         # sqlite db, per-user CLI logins (data/homes), admin token
+    restart: unless-stopped
+    # Each CLI run executes inside this container with its own temp dir and an isolated HOME.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  proxy-data:
