@@ -1,4 +1,4 @@
-# CLI Credit Proxy
+# LLM CLI Gateway
 
 Turn the coding CLIs you already have (Claude Code, OpenAI Codex, Google Antigravity, Gemini CLI, or any custom
 CLI) into a **self-hosted, OpenAI-compatible and Anthropic-compatible API**, with per-user API keys, a credit
