@@ -51,8 +51,8 @@ least one CLI on your `PATH` that you have signed in to or have an API key for (
 
 ```bash
 # 1. Get the code
-git clone https://github.com/guna81/ai-credit-proxy.git
-cd ai-credit-proxy
+git clone https://github.com/guna81/llm-cli-gateway.git
+cd llm-cli-gateway
 
 # 2. Configure
 cp .env.example backend/.env          # the server reads backend/.env
