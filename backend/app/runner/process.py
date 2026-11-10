@@ -26,7 +26,10 @@ class RunResult:
 
 def kill_group(pid: int, sig: int = signal.SIGTERM) -> None:
     try:
-        os.killpg(pid, sig)
+        if hasattr(os, "killpg"):
+            os.killpg(pid, sig)
+        else:
+            os.kill(pid, sig)
     except (ProcessLookupError, PermissionError):
         pass  # already gone (a zombie group leader gives EPERM on macOS)
 

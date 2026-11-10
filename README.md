@@ -91,6 +91,32 @@ print(c.chat.completions.create(model="claude/haiku", messages=[{"role": "user",
 the server's `PATH`; "not signed in" means that CLI has no login or API key for the server user. See
 [docs/cli-notes.md](docs/cli-notes.md) for each CLI's quirks.
 
+### Running as an Always-On Background Service
+
+To keep the gateway continuously running in the background across reboots and crashes (without keeping a terminal window open):
+
+- **macOS & Linux**:
+  ```bash
+  ./manage-service.sh install    # registers LaunchAgent (macOS) or systemd user service (Linux)
+  ./manage-service.sh status     # verify health and port listening
+  ./manage-service.sh logs       # follow live logs
+  ./manage-service.sh restart    # restart daemon
+  ./manage-service.sh stop       # stop service
+  ./manage-service.sh uninstall  # remove service configuration
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\manage-service.ps1 install
+  powershell -ExecutionPolicy Bypass -File .\manage-service.ps1 status
+  powershell -ExecutionPolicy Bypass -File .\manage-service.ps1 logs
+  ```
+  *(Or run within WSL2 using `./manage-service.sh install`)*
+- **Universal (Docker / PM2)**:
+  - Docker Compose: `docker compose up -d` (uses `restart: unless-stopped`)
+  - PM2: `pm2 start ecosystem.config.cjs && pm2 save && pm2 startup`
+
+See the detailed **[Always-Running Service Guide](docs/always-running.md)** for architecture details, platform specifics, and troubleshooting.
+
 ### Docker
 
 ```bash

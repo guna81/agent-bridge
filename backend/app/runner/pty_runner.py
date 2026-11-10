@@ -2,14 +2,20 @@
 from __future__ import annotations
 
 import asyncio
-import fcntl
 import os
-import pty
 import re
 import signal
 import struct
 import subprocess
-import termios
+
+try:
+    import fcntl
+    import pty
+    import termios
+except ImportError:
+    fcntl = None  # type: ignore
+    pty = None  # type: ignore
+    termios = None  # type: ignore
 
 _ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")
 
@@ -114,7 +120,10 @@ class PtySession:
         if p is not None:
             for sig in (signal.SIGTERM, signal.SIGKILL):
                 try:
-                    os.killpg(p.pid, sig)
+                    if hasattr(os, "killpg"):
+                        os.killpg(p.pid, sig)
+                    else:
+                        os.kill(p.pid, sig)
                 except (ProcessLookupError, PermissionError):
                     pass
                 if sig == signal.SIGTERM:

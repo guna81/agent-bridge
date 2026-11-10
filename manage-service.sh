@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 set -e
 
-# Configuration
-SERVICE_LABEL="com.ai-credit-proxy"
+# ==============================================================================
+# LLM CLI Gateway (ai-credit-proxy) - Multi-OS Service Manager
+# Supports:
+#   - macOS (launchd LaunchAgent)
+#   - Linux (systemd user service with linger, or supervisor fallback)
+# ==============================================================================
+
+SERVICE_NAME="ai-credit-proxy"
+MACOS_LABEL="com.ai-credit-proxy"
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$REPO_DIR/backend"
 PYTHON_BIN="$BACKEND_DIR/.venv/bin/python"
-LOG_DIR="$HOME/Library/Logs/ai-credit-proxy"
-LOG_FILE="$LOG_DIR/server.log"
-ERR_LOG_FILE="$LOG_DIR/server.err.log"
-PLIST_FILE="$HOME/Library/LaunchAgents/${SERVICE_LABEL}.plist"
 PORT=8765
 
 # Load port from backend/.env if present
@@ -20,23 +24,124 @@ if [ -f "$BACKEND_DIR/.env" ]; then
     fi
 fi
 
-# Ensure Python binary exists
+# Detect Operating System
+OS_TYPE="$(uname -s)"
+case "$OS_TYPE" in
+    Darwin)
+        PLATFORM="macos"
+        ;;
+    Linux)
+        PLATFORM="linux"
+        ;;
+    CYGWIN*|MINGW*|MSYS*)
+        PLATFORM="windows"
+        ;;
+    *)
+        PLATFORM="unknown"
+        ;;
+esac
+
+# Paths per platform
+if [ "$PLATFORM" = "macos" ]; then
+    LOG_DIR="$HOME/Library/Logs/ai-credit-proxy"
+    PLIST_FILE="$HOME/Library/LaunchAgents/${MACOS_LABEL}.plist"
+elif [ "$PLATFORM" = "linux" ]; then
+    if [ -n "$XDG_STATE_HOME" ]; then
+        LOG_DIR="$XDG_STATE_HOME/ai-credit-proxy"
+    else
+        LOG_DIR="$HOME/.local/state/ai-credit-proxy"
+    fi
+    SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
+    SERVICE_FILE="$SYSTEMD_USER_DIR/${SERVICE_NAME}.service"
+else
+    LOG_DIR="$HOME/.ai-credit-proxy/logs"
+fi
+
+LOG_FILE="$LOG_DIR/server.log"
+ERR_LOG_FILE="$LOG_DIR/server.err.log"
+
 check_python() {
     if [ ! -f "$PYTHON_BIN" ]; then
         echo "Error: Python venv not found at $PYTHON_BIN"
-        echo "Please run: cd backend && uv sync"
+        echo "Please set up the environment first:"
+        echo "  cd backend && uv sync"
         exit 1
     fi
 }
 
-generate_plist() {
-    mkdir -p "$HOME/Library/LaunchAgents"
+setup_log_dirs() {
     mkdir -p "$LOG_DIR"
     touch "$LOG_FILE" "$ERR_LOG_FILE"
-
-    # Create convenient symlinks in backend/
+    # Symlink logs into backend/ for local convenience
     ln -sf "$LOG_FILE" "$BACKEND_DIR/server.log" 2>/dev/null || true
     ln -sf "$ERR_LOG_FILE" "$BACKEND_DIR/server.err.log" 2>/dev/null || true
+}
+
+find_listening_pids() {
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null || true
+    elif command -v ss >/dev/null 2>&1; then
+        ss -tulpn "sport = :$PORT" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d'=' -f2 | sort -u || true
+    elif command -v fuser >/dev/null 2>&1; then
+        fuser "$PORT/tcp" 2>/dev/null || true
+    fi
+}
+
+stop_manual_process_on_port() {
+    local pids
+    pids=$(find_listening_pids)
+    if [ -n "$pids" ]; then
+        echo "Found existing process listening on port $PORT (PID(s): $pids). Terminating..."
+        for pid in $pids; do
+            local cmd
+            cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
+            if echo "$cmd" | grep -qE "python|run.py"; then
+                kill -15 "$pid" 2>/dev/null || true
+            fi
+        done
+        sleep 1
+        pids=$(find_listening_pids)
+        if [ -n "$pids" ]; then
+            for pid in $pids; do
+                local cmd
+                cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
+                if echo "$cmd" | grep -qE "python|run.py"; then
+                    kill -9 "$pid" 2>/dev/null || true
+                fi
+            done
+        fi
+    fi
+}
+
+wait_for_health() {
+    echo "Waiting for service to respond on http://127.0.0.1:$PORT..."
+    local ready=0
+    for _ in {1..20}; do
+        if curl -s "http://127.0.0.1:$PORT/healthz" 2>/dev/null | grep -q '"ok":true'; then
+            ready=1
+            break
+        fi
+        sleep 0.5
+    done
+
+    if [ $ready -eq 1 ]; then
+        echo "Service is running successfully!"
+        echo "URL: http://127.0.0.1:$PORT"
+        echo "Logs: $LOG_FILE"
+        echo "Daemon will automatically restart on crash and start on boot/login."
+    else
+        echo "Warning: Service started but health check (/healthz) did not respond in time."
+        echo "Check logs: tail -n 30 $ERR_LOG_FILE"
+    fi
+}
+
+# ==============================================================================
+# macOS Implementation (launchd)
+# ==============================================================================
+
+macos_generate_plist() {
+    mkdir -p "$HOME/Library/LaunchAgents"
+    setup_log_dirs
 
     cat <<EOF > "$PLIST_FILE"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -44,7 +149,7 @@ generate_plist() {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>${SERVICE_LABEL}</string>
+    <string>${MACOS_LABEL}</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -84,113 +189,61 @@ EOF
     echo "Generated LaunchAgent plist: $PLIST_FILE"
 }
 
-stop_manual_process_on_port() {
-    local pids
-    pids=$(lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null || true)
-    if [ -n "$pids" ]; then
-        echo "Found existing process listening on port $PORT (PID(s): $pids). Terminating..."
-        for pid in $pids; do
-            # Only kill if it's actually running python or run.py
-            local cmd
-            cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
-            if echo "$cmd" | grep -qE "python|run.py"; then
-                kill -15 "$pid" 2>/dev/null || true
-            fi
-        done
-        sleep 1
-        pids=$(lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null || true)
-        if [ -n "$pids" ]; then
-            for pid in $pids; do
-                local cmd
-                cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
-                if echo "$cmd" | grep -qE "python|run.py"; then
-                    kill -9 "$pid" 2>/dev/null || true
-                fi
-            done
-        fi
-    fi
+macos_is_loaded() {
+    launchctl list 2>/dev/null | grep -q "$MACOS_LABEL"
 }
 
-service_is_loaded() {
-    launchctl list 2>/dev/null | grep -q "$SERVICE_LABEL"
-}
+macos_install() {
+    echo "Installing $MACOS_LABEL as a macOS LaunchAgent (always running)..."
+    macos_generate_plist
 
-install_and_start() {
-    check_python
-    echo "Installing $SERVICE_LABEL as a macOS LaunchAgent (always running)..."
-    generate_plist
-
-    if service_is_loaded; then
+    if macos_is_loaded; then
         echo "Unloading existing LaunchAgent..."
         launchctl unload -w "$PLIST_FILE" 2>/dev/null || true
     fi
 
     stop_manual_process_on_port
-
-    echo "Loading and starting LaunchAgent..."
+    echo "Loading and enabling LaunchAgent..."
     launchctl load -w "$PLIST_FILE"
-
-    echo "Waiting for service to start on http://127.0.0.1:$PORT..."
-    local ready=0
-    for _ in {1..15}; do
-        if curl -s "http://127.0.0.1:$PORT/healthz" | grep -q '"ok":true'; then
-            ready=1
-            break
-        fi
-        sleep 0.5
-    done
-
-    if [ $ready -eq 1 ]; then
-        echo "Service is running successfully!"
-        echo "URL: http://127.0.0.1:$PORT"
-        echo "Logs: $LOG_FILE"
-        echo "LaunchAgent will automatically restart if killed and start on system boot/login."
-    else
-        echo "Warning: Service started but health check did not respond yet."
-        echo "Check logs: tail -n 30 $LOG_FILE"
-    fi
+    wait_for_health
 }
 
-start_service() {
-    check_python
+macos_start() {
     if [ ! -f "$PLIST_FILE" ]; then
-        install_and_start
+        macos_install
         return
     fi
-
-    if ! service_is_loaded; then
+    if ! macos_is_loaded; then
         stop_manual_process_on_port
         launchctl load -w "$PLIST_FILE"
         echo "Service started."
     else
-        echo "Service is already loaded. Checking if running..."
-        status_service
+        echo "Service is already loaded in launchd."
+        macos_status
     fi
 }
 
-stop_service() {
-    if [ -f "$PLIST_FILE" ] && service_is_loaded; then
-        echo "Stopping service $SERVICE_LABEL..."
+macos_stop() {
+    if [ -f "$PLIST_FILE" ] && macos_is_loaded; then
+        echo "Stopping service $MACOS_LABEL..."
         launchctl unload -w "$PLIST_FILE" 2>/dev/null || true
     fi
     stop_manual_process_on_port
     echo "Service stopped."
 }
 
-restart_service() {
-    echo "Restarting $SERVICE_LABEL..."
-    stop_service
+macos_restart() {
+    echo "Restarting $MACOS_LABEL..."
+    macos_stop
     sleep 1
-    start_service
+    macos_start
 }
 
-status_service() {
-    echo "=== Service Status for $SERVICE_LABEL ==="
-    local loaded=0
-    local pid=""
-    if service_is_loaded; then
-        loaded=1
-        pid=$(launchctl list | grep "$SERVICE_LABEL" | awk '{print $1}')
+macos_status() {
+    echo "=== Service Status (macOS launchd: $MACOS_LABEL) ==="
+    if macos_is_loaded; then
+        local pid
+        pid=$(launchctl list | grep "$MACOS_LABEL" | awk '{print $1}')
         echo "LaunchAgent: LOADED"
         if [ "$pid" != "-" ] && [ -n "$pid" ]; then
             echo "Launchd PID: $pid"
@@ -202,7 +255,7 @@ status_service() {
     fi
 
     local port_pids
-    port_pids=$(lsof -ti tcp:"$PORT" -sTCP:LISTEN 2>/dev/null || true)
+    port_pids=$(find_listening_pids)
     if [ -n "$port_pids" ]; then
         echo "Port $PORT: LISTENING (PID: $port_pids)"
     else
@@ -220,9 +273,9 @@ status_service() {
     echo "Log file: $LOG_FILE"
 }
 
-uninstall_service() {
-    echo "Uninstalling $SERVICE_LABEL..."
-    stop_service
+macos_uninstall() {
+    echo "Uninstalling $MACOS_LABEL..."
+    macos_stop
     if [ -f "$PLIST_FILE" ]; then
         rm -f "$PLIST_FILE"
         echo "Removed LaunchAgent plist: $PLIST_FILE"
@@ -230,45 +283,204 @@ uninstall_service() {
     echo "Uninstallation complete."
 }
 
+# ==============================================================================
+# Linux Implementation (systemd user unit)
+# ==============================================================================
+
+linux_has_systemd() {
+    command -v systemctl >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1
+}
+
+linux_generate_service() {
+    mkdir -p "$SYSTEMD_USER_DIR"
+    setup_log_dirs
+
+    cat <<EOF > "$SERVICE_FILE"
+[Unit]
+Description=LLM CLI Gateway (ai-credit-proxy)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=${BACKEND_DIR}
+ExecStart=${PYTHON_BIN} ${BACKEND_DIR}/run.py
+Restart=always
+RestartSec=3
+Environment="PATH=${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+Environment="HOME=${HOME}"
+Environment="USER=${USER}"
+Environment="PYTHONUNBUFFERED=1"
+StandardOutput=append:${LOG_FILE}
+StandardError=append:${ERR_LOG_FILE}
+
+[Install]
+WantedBy=default.target
+EOF
+    echo "Generated systemd user service: $SERVICE_FILE"
+}
+
+linux_install() {
+    echo "Installing $SERVICE_NAME as a Linux systemd user service..."
+    linux_generate_service
+
+    echo "Reloading systemd user daemon..."
+    systemctl --user daemon-reload
+
+    # Enable linger so service runs even when SSH session disconnects
+    if command -v loginctl >/dev/null 2>&1; then
+        echo "Enabling linger for $USER (keeps service running without active login session)..."
+        loginctl enable-linger "$USER" 2>/dev/null || true
+    fi
+
+    stop_manual_process_on_port
+    echo "Enabling and starting $SERVICE_NAME.service..."
+    systemctl --user enable --now "$SERVICE_NAME.service"
+    wait_for_health
+}
+
+linux_start() {
+    if [ ! -f "$SERVICE_FILE" ]; then
+        linux_install
+        return
+    fi
+    stop_manual_process_on_port
+    systemctl --user start "$SERVICE_NAME.service"
+    echo "Service started."
+}
+
+linux_stop() {
+    if systemctl --user is-active --quiet "$SERVICE_NAME.service" 2>/dev/null; then
+        echo "Stopping service $SERVICE_NAME..."
+        systemctl --user stop "$SERVICE_NAME.service"
+    fi
+    stop_manual_process_on_port
+    echo "Service stopped."
+}
+
+linux_restart() {
+    echo "Restarting $SERVICE_NAME..."
+    systemctl --user restart "$SERVICE_NAME.service"
+    wait_for_health
+}
+
+linux_status() {
+    echo "=== Service Status (Linux systemd: $SERVICE_NAME) ==="
+    if systemctl --user is-active --quiet "$SERVICE_NAME.service" 2>/dev/null; then
+        echo "systemd Unit: ACTIVE (Running)"
+    else
+        echo "systemd Unit: INACTIVE"
+    fi
+
+    local port_pids
+    port_pids=$(find_listening_pids)
+    if [ -n "$port_pids" ]; then
+        echo "Port $PORT: LISTENING (PID: $port_pids)"
+    else
+        echo "Port $PORT: NOT LISTENING"
+    fi
+
+    local health
+    health=$(curl -s "http://127.0.0.1:$PORT/healthz" 2>/dev/null || true)
+    if echo "$health" | grep -q '"ok":true'; then
+        echo "Health Check (/healthz): OK ($health)"
+        echo "Application is UP at http://127.0.0.1:$PORT"
+    else
+        echo "Health Check (/healthz): FAILED / UNRESPONSIVE"
+    fi
+    echo "Log file: $LOG_FILE"
+}
+
+linux_uninstall() {
+    echo "Uninstalling $SERVICE_NAME..."
+    systemctl --user disable --now "$SERVICE_NAME.service" 2>/dev/null || true
+    if [ -f "$SERVICE_FILE" ]; then
+        rm -f "$SERVICE_FILE"
+        systemctl --user daemon-reload
+        echo "Removed systemd service: $SERVICE_FILE"
+    fi
+    echo "Uninstallation complete."
+}
+
 show_logs() {
-    touch "$LOG_FILE" "$ERR_LOG_FILE"
+    setup_log_dirs
     echo "Streaming logs (Press Ctrl+C to exit)..."
     tail -n 50 -f "$LOG_FILE" "$ERR_LOG_FILE"
 }
 
+# ==============================================================================
+# Dispatcher
+# ==============================================================================
+
+if [ "$PLATFORM" = "windows" ]; then
+    echo "Detected Windows environment."
+    echo "For native Windows, run the PowerShell manager:"
+    echo "  powershell -ExecutionPolicy Bypass -File .\\manage-service.ps1 $1"
+    echo "Or run within WSL2 (Ubuntu), PM2, or Docker Compose."
+    exit 1
+fi
+
+check_python
+
 case "$1" in
     install)
-        install_and_start
+        if [ "$PLATFORM" = "macos" ]; then
+            macos_install
+        else
+            linux_install
+        fi
         ;;
     start)
-        start_service
+        if [ "$PLATFORM" = "macos" ]; then
+            macos_start
+        else
+            linux_start
+        fi
         ;;
     stop)
-        stop_service
+        if [ "$PLATFORM" = "macos" ]; then
+            macos_stop
+        else
+            linux_stop
+        fi
         ;;
     restart)
-        restart_service
+        if [ "$PLATFORM" = "macos" ]; then
+            macos_restart
+        else
+            linux_restart
+        fi
         ;;
     status)
-        status_service
+        if [ "$PLATFORM" = "macos" ]; then
+            macos_status
+        else
+            linux_status
+        fi
         ;;
     logs)
         show_logs
         ;;
     uninstall)
-        uninstall_service
+        if [ "$PLATFORM" = "macos" ]; then
+            macos_uninstall
+        else
+            linux_uninstall
+        fi
         ;;
     *)
+        echo "LLM CLI Gateway (ai-credit-proxy) - Service Manager"
+        echo "Detected Platform: $PLATFORM"
+        echo ""
         echo "Usage: $0 {install|start|stop|restart|status|logs|uninstall}"
         echo ""
         echo "Commands:"
-        echo "  install    Generate LaunchAgent plist and start the service (always running)"
-        echo "  start      Start the service"
-        echo "  stop       Stop the service"
+        echo "  install    Install as a background daemon (LaunchAgent on macOS, systemd on Linux) and start"
+        echo "  start      Start the background service"
+        echo "  stop       Stop the background service"
         echo "  restart    Restart the service"
         echo "  status     Check if service and port $PORT are active and healthy"
         echo "  logs       Stream live server logs"
-        echo "  uninstall  Stop service and remove LaunchAgent plist"
+        echo "  uninstall  Stop service and remove service definition"
         exit 1
         ;;
 esac
