@@ -122,10 +122,68 @@ def healthy(port, token):
         return False
 
 
+def read_config():
+    try:
+        value = json.loads(CONFIG.read_text())
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_config(config):
+    DATA.mkdir(mode=0o700, parents=True, exist_ok=True)
+    CONFIG.write_text(json.dumps(config))
+    CONFIG.chmod(0o600)
+
+
+def startup_launcher():
+    _, launcher = installation_paths()
+    try:
+        if FROZEN:
+            if os.name == 'nt':
+                valid = f'"{Path(sys.executable).resolve()}" %*'.lower() in launcher.read_text(encoding='utf-8').lower()
+            else:
+                valid = launcher.is_symlink() and launcher.resolve() == Path(sys.executable).resolve()
+        elif os.name == 'nt':
+            content = launcher.read_text(encoding='utf-8').lower()
+            valid = f'"{Path(sys.executable).resolve()}" -m app.cli %*'.lower() in content and str(ROOT / 'backend').lower() in content
+        else:
+            valid = not launcher.is_symlink() and launcher.read_text() == '#!/bin/sh\nexec ' + shlex.quote(str(ROOT / 'agentbridge')) + ' "$@"\n'
+        return launcher if valid else None
+    except (OSError, UnicodeError):
+        return None
+
+
+def autostart_command(action):
+    from app import autostart
+    config = read_config()
+    if action == 'status':
+        print('Automatic startup: ' + ('enabled' if autostart.is_registered(DATA) else 'not registered'))
+        return
+    if action == 'enable':
+        launcher = startup_launcher()
+        if launcher is None:
+            raise RuntimeError('Cannot find the installed AgentBridge launcher. Install the CLI first or set AGENTBRIDGE_BIN_DIR.')
+        autostart.register(launcher, DATA)
+        config['autostart'] = True
+        write_config(config)
+        print('Automatic startup enabled for your user login.')
+    else:
+        autostart.unregister(DATA)
+        config['autostart'] = False
+        write_config(config)
+        print('Automatic startup disabled.')
+
+
 def start(args):
     if state():
         print("AgentBridge is already running. Use 'agentbridge status' for details.")
         return
+    config = read_config()
+    if args.port is None:
+        args.port = config.get('port', DEFAULT_PORT)
+    if not isinstance(args.port, int) or not 1 <= args.port <= 65535:
+        raise ValueError('port must be between 1 and 65535')
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -134,10 +192,7 @@ def start(args):
             raise RuntimeError(f"Port {args.port} is already in use; choose another with --port.") from exc
     values = credentials()
     if args.personal is None:
-        try:
-            args.personal = bool(json.loads(CONFIG.read_text()).get("personal", False))
-        except (OSError, ValueError):
-            args.personal = False
+        args.personal = bool(config.get("personal", False))
     env = os.environ.copy()
     env.update(PROXY_DATA_DIR=str(DATA), PROXY_HOST="127.0.0.1", PROXY_PORT=str(args.port),
                PROXY_SECRET_KEY=values["secret_key"], PROXY_KEY_PEPPER=values["key_pepper"],
@@ -167,8 +222,8 @@ def start(args):
     info = {"pid": child.pid, "identity": process_identity, "port": args.port, "personal": args.personal}
     STATE.write_text(json.dumps(info))
     STATE.chmod(0o600)
-    CONFIG.write_text(json.dumps({"personal": args.personal}))
-    CONFIG.chmod(0o600)
+    config.update(personal=args.personal, port=args.port)
+    write_config(config)
     print(f"Gateway running at http://127.0.0.1:{args.port}")
     if args.personal:
         print("Personal CLI login reuse enabled for newly created providers.")
@@ -198,6 +253,15 @@ def start(args):
             print("System tray helper started.")
         else:
             print(f"System tray unavailable. Check {DATA / 'tray.log'}; the gateway is still running.")
+    if config.get('autostart', True) and os.environ.get('AGENTBRIDGE_DISABLE_AUTOSTART') != '1':
+        from app import autostart
+        launcher = startup_launcher()
+        if launcher is not None and not autostart.is_registered(DATA):
+            try:
+                autostart.register(launcher, DATA)
+                print("Automatic startup enabled for your user login.")
+            except (OSError, RuntimeError) as exc:
+                print(f"Could not enable automatic startup: {exc}. Run 'agentbridge autostart enable' to retry.", file=sys.stderr)
     print("Run 'agentbridge dashboard' to open the dashboard.")
 
 
@@ -302,6 +366,8 @@ def uninstall_cli(purge=False):
         release_dirs = [path for path in releases.iterdir() if not path.is_symlink() and path.is_dir()
                         and (path.name.startswith("release.") or path.name.startswith("release-"))
                         and (path / "agentbridge" / binary_name).is_file()]
+    from app import autostart
+    autostart.unregister(DATA)
     stop()
     if os.name == "nt" and FROZEN:
         # Windows cannot delete the executable while this process is running.
@@ -352,7 +418,7 @@ Documentation: https://github.com/guna81/agent-bridge#readme""",
     from app.updates import VERSION, check_update
     parser.add_argument("--version", action="version", version=f"AgentBridge {VERSION}")
     sub = parser.add_subparsers(dest="command", required=True, title="commands",
-                                metavar="{start,stop,status,dashboard,update,uninstall}")
+                                metavar="{start,stop,status,dashboard,autostart,update,uninstall}")
     start_parser = sub.add_parser("start", help="start the gateway and status indicator",
         description="Start the local gateway and menu bar or system tray indicator in the background.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -363,7 +429,7 @@ Documentation: https://github.com/guna81/agent-bridge#readme""",
 
 If no authentication mode is specified, the last saved mode is used.
 The gateway listens on 127.0.0.1. Install and sign in to provider CLIs separately.""")
-    start_parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"local gateway port (default: {DEFAULT_PORT})")
+    start_parser.add_argument("--port", type=int, default=None, help=f"local gateway port (default: saved port, otherwise {DEFAULT_PORT})")
     mode = start_parser.add_mutually_exclusive_group()
     mode.add_argument("--personal", dest="personal", action="store_true", default=None, help="reuse your own CLI logins for personal use; enable newly created providers")
     mode.add_argument("--api-key-mode", dest="personal", action="store_false", help="disable reuse of local CLI logins")
@@ -372,6 +438,9 @@ The gateway listens on 127.0.0.1. Install and sign in to provider CLIs separatel
                    description="Stop the gateway and status indicator started by this CLI. User data is retained.")
     sub.add_parser("status", help="show the gateway's health and address",
                    description="Show whether the managed gateway is running, its health, address, and process ID.")
+    auto_parser = sub.add_parser("autostart", help="manage automatic startup at user login",
+        description="Enable, disable, or check starting AgentBridge when you sign in.")
+    auto_parser.add_argument("action", choices=("enable", "disable", "status"))
     sub.add_parser("update", help="install the latest stable release",
         description="Check for and install a newer stable release for an installer-managed package.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -410,8 +479,6 @@ Treat the admin token as a secret. --show-token prints it for manual sign-in."""
                   "Run 'agentbridge update' to install it.", file=sys.stderr)
     try:
         if args.command == "start":
-            if not 1 <= args.port <= 65535:
-                parser.error("port must be between 1 and 65535")
             start(args)
         elif args.command == "stop":
             stop()
@@ -421,6 +488,8 @@ Treat the admin token as a secret. --show-token prints it for manual sign-in."""
                 print(f"Gateway: {'ready' if healthy(info['port'], credentials()['admin_token']) else 'not responding'} at http://127.0.0.1:{info['port']} (PID {info['pid']})")
             else:
                 print("AgentBridge is not running under this CLI.")
+        elif args.command == "autostart":
+            autostart_command(args.action)
         elif args.command == "update":
             update_cli()
         elif args.command == "uninstall":

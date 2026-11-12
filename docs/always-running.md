@@ -1,6 +1,6 @@
 # Always-Running Service Guide
 
-This guide covers the optional source-checkout service scripts for **AgentBridge** on macOS, Linux, Windows, and Docker. They are separate from the packaged `agentbridge start` command, which runs in the background but does not register a login service. Configure the source server first using the [README](../README.md#run-the-source-server-directly), and avoid running two gateways on the same port. These service identifiers retain the historical `ai-credit-proxy` name. The scripts can stop an existing process listening on the configured port; inspect the port before installing or starting a service.
+This guide covers the optional source-checkout service scripts for **AgentBridge** on macOS, Linux, Windows, and Docker. They are separate from the packaged `agentbridge start` command, which starts the gateway at user login by default. Use `agentbridge autostart status`, `enable`, or `disable` to manage that behavior. Configure the source server first using the [README](../README.md#run-the-source-server-directly), and avoid running two gateways on the same port. These service identifiers retain the historical `ai-credit-proxy` name. The scripts can stop an existing process listening on the configured port; inspect the port before installing or starting a service.
 
 ---
 

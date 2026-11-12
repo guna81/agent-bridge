@@ -29,6 +29,10 @@ def test_cli_start_and_stop(tmp_path):
         assert 'already running' in occupied.stdout
         assert run('stop').returncode == 0
         assert 'not running' in run('status').stdout
+        restarted = run('start', '--no-tray')
+        assert restarted.returncode == 0, restarted.stderr
+        assert json.loads((tmp_path / 'service.json').read_text())['port'] == port
+        assert json.loads((tmp_path / 'service.json').read_text())['personal'] is True
     finally:
         run('stop')
 

@@ -44,7 +44,7 @@ jobs:
       - run: cd frontend && npm ci && npm run build
       - if: runner.os == 'macOS'
         run: ./menubar/build.sh
-      - run: '"${{ matrix.python }}" -m pytest backend/tests/test_cli_manager.py backend/tests/test_tray.py backend/tests/test_updates.py -q'
+      - run: '"${{ matrix.python }}" -m pytest backend/tests/test_cli_manager.py backend/tests/test_tray.py backend/tests/test_updates.py backend/tests/test_autostart.py -q'
       - run: '"${{ matrix.python }}" scripts/build-release.py'
       - run: '"${{ matrix.python }}" scripts/smoke-release.py'
       - run: '"${{ matrix.python }}" scripts/archive-release.py "${{ matrix.platform }}"'

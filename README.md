@@ -46,6 +46,9 @@ The installers download the [latest release](https://github.com/guna81/agent-bri
 
 ```sh
 agentbridge status                # gateway health and address
+agentbridge autostart status      # check startup at user login
+agentbridge autostart enable      # start automatically when you sign in
+agentbridge autostart disable     # turn automatic startup off
 agentbridge dashboard             # open the signed-in dashboard
 agentbridge --version             # installed version
 agentbridge update                # install the latest stable release
@@ -57,7 +60,7 @@ agentbridge start --port 43188    # choose another port
 agentbridge start --no-tray       # run without a status indicator
 ```
 
-After an update, run `agentbridge stop` followed by `agentbridge start` to use the new version. Updates retain the existing installation files and user data. Uninstall retains user data unless `--purge` is supplied; a source checkout and installer launcher backups are retained. On Windows, packaged uninstall completes after the command exits and reports a log path. AgentBridge stores its database, secrets, and logs in `~/.agentbridge` (override with `AGENTBRIDGE_HOME`) and binds to loopback by default. For tray startup errors on Windows or Linux, check `~/.agentbridge/tray.log`. The CLI does not register an automatic login service.
+After an update, run `agentbridge stop` followed by `agentbridge start` to use the new version. Updates retain the existing installation files and user data. Uninstall retains user data unless `--purge` is supplied; a source checkout and installer launcher backups are retained. On Windows, packaged uninstall completes after the command exits and reports a log path. AgentBridge stores its database, secrets, and logs in `~/.agentbridge` (override with `AGENTBRIDGE_HOME`) and binds to loopback by default. For tray startup errors on Windows or Linux, check `~/.agentbridge/tray.log`. After the first successful start, AgentBridge enables automatic startup at user login when it can verify the installed launcher. It remembers the gateway port and authentication mode. Use `agentbridge autostart disable` to turn this off. Linux requires a desktop session that supports XDG autostart; tray support varies by desktop.
 
 The indicator shows remaining capacity: its bars shrink as usage increases. The compact icon opens the same usage details, and the menu includes percentages and reset times when available. Windows and Linux use compact tray graphics; an always-visible widget is not currently available. See the [status indicator guide](docs/mac-status-bar.md).
 
