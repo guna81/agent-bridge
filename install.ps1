@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$repo = if ($env:AGENTBRIDGE_REPOSITORY) { $env:AGENTBRIDGE_REPOSITORY } else { 'guna81/llm-cli-gateway' }
+$repo = if ($env:AGENTBRIDGE_REPOSITORY) { $env:AGENTBRIDGE_REPOSITORY } else { 'guna81/agent-bridge' }
 $base = if ($env:AGENTBRIDGE_RELEASE_BASE_URL) { $env:AGENTBRIDGE_RELEASE_BASE_URL } else { "https://github.com/$repo/releases/latest/download" }
 if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [System.Runtime.InteropServices.Architecture]::X64) { throw 'Only Windows x86-64 release packages are currently available.' }
 $name = 'agentbridge-windows-x86_64.zip'

@@ -11,8 +11,8 @@ import urllib.error
 import urllib.request
 
 VERSION = "0.2.0"  # Development version; release builds are stamped from their tag.
-RELEASES_URL = "https://github.com/guna81/llm-cli-gateway/releases/latest"
-API_URL = "https://api.github.com/repos/guna81/llm-cli-gateway/releases/latest"
+RELEASES_URL = "https://github.com/guna81/agent-bridge/releases/latest"
+API_URL = "https://api.github.com/repos/guna81/agent-bridge/releases/latest"
 CACHE_SECONDS = 12 * 60 * 60
 FAILURE_CACHE_SECONDS = 60 * 60
 _VERSION = re.compile(r"^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")

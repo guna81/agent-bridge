@@ -50,12 +50,12 @@ AgentBridge runs a local gateway with a usage indicator in the macOS menu bar or
 
 ```sh
 # macOS Apple Silicon or Linux x86-64
-curl -fsSL https://raw.githubusercontent.com/guna81/llm-cli-gateway/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/guna81/agent-bridge/main/install.sh | sh
 ```
 
 ```powershell
 # Windows x86-64, PowerShell
-irm https://raw.githubusercontent.com/guna81/llm-cli-gateway/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/guna81/agent-bridge/main/install.ps1 | iex
 ```
 
 Run `agentbridge --version` to see the installed version. The dashboard sidebar also shows it. The CLI and dashboard periodically check GitHub for a newer stable release and show an update notice; checks are cached and failures do not prevent normal use.
@@ -65,7 +65,7 @@ The installers download the latest GitHub Release and verify its SHA-256 checksu
 For development, install from a checkout with Python 3.12 (via [uv](https://docs.astral.sh/uv/)) and Node.js/npm:
 
 ```bash
-git clone https://github.com/guna81/llm-cli-gateway.git
+git clone https://github.com/guna81/agent-bridge.git
 cd llm-cli-gateway
 ./install-cli.sh
 agentbridge start --personal
@@ -96,7 +96,7 @@ least one CLI on your `PATH` that you have signed in to or have an API key for (
 
 ```bash
 # 1. Get the code
-git clone https://github.com/guna81/llm-cli-gateway.git
+git clone https://github.com/guna81/agent-bridge.git
 cd llm-cli-gateway
 
 # 2. Configure

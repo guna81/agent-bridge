@@ -1,7 +1,7 @@
 #!/bin/sh
 # Install the latest published AgentBridge release into the current user's account.
 set -eu
-repo=${AGENTBRIDGE_REPOSITORY:-guna81/llm-cli-gateway}
+repo=${AGENTBRIDGE_REPOSITORY:-guna81/agent-bridge}
 base=${AGENTBRIDGE_RELEASE_BASE_URL:-https://github.com/$repo/releases/latest/download}
 case "$(uname -s):$(uname -m)" in
   Darwin:arm64) platform=macos-arm64 ;;
