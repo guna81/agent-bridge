@@ -32,7 +32,7 @@ class StatusBarConfig(BaseModel):
             raise ValueError("Select one or two distinct CLI providers")
         return self
     display_mode: Literal["bars", "compact"] = "bars"
-    refresh_interval_seconds: int = Field(default=3, ge=2, le=300)
+    refresh_interval_seconds: Literal[2, 5, 10, 30] = 5
     antigravity_ls_address: str = ""
     antigravity_csrf_token: str = ""
     codex_sqlite_path: str = ""
@@ -60,6 +60,10 @@ def load_status_bar_config() -> StatusBarConfig:
         try:
             with open(p, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            # Preserve older settings while moving legacy intervals to a supported choice.
+            interval = data.get("refresh_interval_seconds")
+            if isinstance(interval, (int, float)) and interval not in (2, 5, 10, 30):
+                data["refresh_interval_seconds"] = min((2, 5, 10, 30), key=lambda choice: abs(choice - interval))
             cfg = StatusBarConfig.model_validate(data)
             # If config has empty LS or CSRF but env has them, use env
             if not cfg.antigravity_ls_address and env_ls:

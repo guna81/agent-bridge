@@ -52,8 +52,11 @@ def test_status_bar_config_rejects_invalid_display_and_interval():
     assert StatusBarConfig(refresh_interval_seconds=2, display_mode='compact').refresh_interval_seconds == 2
     with pytest.raises(ValidationError):
         StatusBarConfig(display_mode='widget')
-    with pytest.raises(ValidationError):
-        StatusBarConfig(refresh_interval_seconds=1)
+    for seconds in (2, 5, 10, 30):
+        assert StatusBarConfig(refresh_interval_seconds=seconds).refresh_interval_seconds == seconds
+    for seconds in (1, 3, 4, 300):
+        with pytest.raises(ValidationError):
+            StatusBarConfig(refresh_interval_seconds=seconds)
 
 
 def test_indicator_defaults_on_and_config_persists(tmp_path, monkeypatch):
@@ -87,3 +90,13 @@ def test_tray_visibility_changes_without_stopping_polling(tray, monkeypatch):
     monkeypatch.setattr(tray, 'request', lambda path: response)
     instance.update()
     assert instance.icon.visible is True
+
+
+def test_legacy_interval_migration_preserves_other_settings(tmp_path, monkeypatch):
+    from app import status_bar_config
+    path = tmp_path / 'status_bar_config.json'
+    monkeypatch.setattr(status_bar_config, '_config_file_path', lambda: path)
+    path.write_text('{"refresh_interval_seconds": 3, "display_mode": "compact"}')
+    config = status_bar_config.load_status_bar_config()
+    assert config.refresh_interval_seconds == 2
+    assert config.display_mode == 'compact'
