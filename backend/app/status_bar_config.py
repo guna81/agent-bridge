@@ -12,6 +12,7 @@ class EnabledProviders(BaseModel):
 
 
 class StatusBarConfig(BaseModel):
+    indicator_enabled: bool = True
     enabled_providers: EnabledProviders = Field(default_factory=EnabledProviders)
     pinned_metric: str = "antigravity_gemini_5h"
     selected_clis: list[str] = Field(default_factory=lambda: ["antigravity"], min_length=1, max_length=2)

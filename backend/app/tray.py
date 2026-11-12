@@ -81,11 +81,13 @@ class Tray:
     def __init__(self):
         self.data = {}
         self.stopped = threading.Event()
+        self.indicator_enabled = True
         self.icon = pystray.Icon('AgentBridge', usage_icon({}), 'AgentBridge')
 
     def update(self):
         try:
             self.data = request('/admin/status-bar')
+            self.indicator_enabled = self.data.get('config', {}).get('indicator_enabled', True)
             self.icon.icon = usage_icon(self.data)
             self.icon.title = 'AgentBridge: remaining usage (top: 5h, bottom: weekly)'
         except Exception:
@@ -93,6 +95,7 @@ class Tray:
             self.icon.title = 'AgentBridge: gateway unavailable'
         self.icon.menu = self.menu()
         self.icon.update_menu()
+        self.icon.visible = self.indicator_enabled
 
     def select(self, name):
         selected = list(self.data.get('config', {}).get('selected_clis', ['antigravity']))
@@ -142,8 +145,9 @@ class Tray:
             self.stopped.wait(max(2, min(300, int(interval))))
 
     def run(self):
-        threading.Thread(target=self.poll, daemon=True).start()
-        self.icon.run()
+        # pystray invokes setup on a worker only after the native event loop is ready.
+        # Keep polling while hidden so the dashboard can turn the icon back on.
+        self.icon.run(setup=lambda icon: self.poll())
 
 
 if __name__ == '__main__':

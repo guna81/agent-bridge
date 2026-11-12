@@ -391,3 +391,6 @@ pre { margin: 0; background: var(--code-bg); color: var(--code-text); padding: 1
 
 .sidebar-version { padding: 0 2px; color: var(--muted); font-size: 12px; }
 .sidebar-version span { color: var(--accent); font-weight: 600; }
+
+.indicator-setting { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px; margin: 16px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.indicator-setting p { margin-top: 4px; }

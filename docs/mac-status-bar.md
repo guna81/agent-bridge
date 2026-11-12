@@ -9,7 +9,7 @@ agentbridge start --personal
 agentbridge dashboard
 ```
 
-Choose one or two providers, a display style, and a refresh interval on **Status indicator**, then save. Changes reach the indicator on its next poll. Install and sign in to the relevant agent CLIs separately; available usage data and reset times depend on the provider and platform.
+The indicator is enabled by default. On **Status indicator**, you can turn it off or on, choose one or two providers, select a display style and refresh interval, then save. Changes reach the indicator on its next poll; hiding it does not stop the gateway or usage tracking. If you started with `--no-tray`, restart without that option to use the indicator. Install and sign in to the relevant agent CLIs separately; available usage data and reset times depend on the provider and platform.
 
 - **Usage bars:** the top bar represents the 5-hour window and the lower bar represents the weekly window. Both show remaining capacity, so they shrink as usage increases. Select up to two providers.
 - **Compact icon:** shows the AgentBridge mark. Click it to see available provider usage and reset times.

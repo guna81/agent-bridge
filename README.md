@@ -35,7 +35,7 @@ The installers download the [latest release](https://github.com/guna81/agent-bri
    agentbridge dashboard
    ```
 
-3. In **Providers**, review and enable the providers you want. Existing provider settings are not overwritten. In **Subscription usage**, inspect available limits; in **Status indicator**, choose up to two providers, the display style, and refresh interval.
+3. In **Providers**, review and enable the providers you want. Existing provider settings are not overwritten. In **Subscription usage**, inspect available limits; in **Status indicator**, enable or hide the indicator, choose up to two providers, the display style, and refresh interval.
 4. To use the gateway from another app, add a user and create a key under **API keys & users**. Point an OpenAI-compatible client at `http://127.0.0.1:43187/v1` and use a `provider/model` identifier. The **API quick start** and **Playground** pages provide examples.
 
 `--personal` enables reuse of this machine's CLI logins for personal use and configures newly created providers accordingly. Review provider terms before using subscription credentials through an API. For API-key mode, run `agentbridge start --api-key-mode` instead. The dashboard command opens the app signed in; for manual sign-in use `agentbridge dashboard --show-token` and keep the token private.

@@ -54,3 +54,36 @@ def test_status_bar_config_rejects_invalid_display_and_interval():
         StatusBarConfig(display_mode='widget')
     with pytest.raises(ValidationError):
         StatusBarConfig(refresh_interval_seconds=1)
+
+
+def test_indicator_defaults_on_and_config_persists(tmp_path, monkeypatch):
+    from app import status_bar_config
+    path = tmp_path / 'status_bar_config.json'
+    monkeypatch.setattr(status_bar_config, '_config_file_path', lambda: path)
+    assert status_bar_config.load_status_bar_config().indicator_enabled is True
+    path.write_text('{"display_mode":"compact"}')
+    assert status_bar_config.load_status_bar_config().indicator_enabled is True
+    config = status_bar_config.load_status_bar_config()
+    config.indicator_enabled = False
+    status_bar_config.save_status_bar_config(config)
+    assert status_bar_config.load_status_bar_config().indicator_enabled is False
+
+
+def test_tray_visibility_changes_without_stopping_polling(tray, monkeypatch):
+    from types import SimpleNamespace
+    instance = tray.Tray()
+    instance.icon = SimpleNamespace(icon=None, title='', menu=None, visible=True, update_menu=lambda: None)
+    response = {'config': {'indicator_enabled': False}, 'rate_limits': {}}
+    monkeypatch.setattr(tray, 'request', lambda path: response)
+    instance.update()
+    assert instance.icon.visible is False
+    assert not instance.stopped.is_set()
+    def offline(path):
+        raise OSError('offline')
+    monkeypatch.setattr(tray, 'request', offline)
+    instance.update()
+    assert instance.icon.visible is False
+    response['config']['indicator_enabled'] = True
+    monkeypatch.setattr(tray, 'request', lambda path: response)
+    instance.update()
+    assert instance.icon.visible is True

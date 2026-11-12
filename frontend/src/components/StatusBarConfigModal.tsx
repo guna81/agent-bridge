@@ -9,6 +9,7 @@ interface Props {
 }
 
 export default function StatusBarConfigModal({ config, onSave, onClose, inline = false }: Props) {
+  const [indicatorEnabled, setIndicatorEnabled] = useState(config.indicator_enabled ?? true);
   const [enabledProviders, setEnabledProviders] = useState(config.enabled_providers);
   const [selectedClis, setSelectedClis] = useState<string[]>(config.selected_clis || ["antigravity"]);
   const [displayMode, setDisplayMode] = useState(config.display_mode || "bars");
@@ -26,6 +27,7 @@ export default function StatusBarConfigModal({ config, onSave, onClose, inline =
     setError("");
     try {
       await onSave({
+        indicator_enabled: indicatorEnabled,
         enabled_providers: enabledProviders,
         display_mode: displayMode,
         pinned_metric: config.pinned_metric,
@@ -58,6 +60,11 @@ export default function StatusBarConfigModal({ config, onSave, onClose, inline =
         {error && <div className="error-note">{error}</div>}
 
         <form onSubmit={handleSubmit}>
+          <div className="indicator-setting">
+            <div><label className="group-label" htmlFor="indicatorEnabled">Show status indicator</label>
+              <p className="muted small">Show AgentBridge in the menu bar or system tray. Usage tracking and the gateway stay active when hidden. Changes apply on the next indicator refresh; if started with --no-tray, restart without it.</p></div>
+            <label className="switch"><input id="indicatorEnabled" type="checkbox" role="switch" checked={indicatorEnabled} onChange={(e) => setIndicatorEnabled(e.target.checked)} /><span /></label>
+          </div>
           <div className="form-group">
             <label className="group-label">Tracked agents</label>
             <div className="checkbox-row">

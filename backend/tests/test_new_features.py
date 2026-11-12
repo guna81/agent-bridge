@@ -545,6 +545,10 @@ def test_status_bar_config_and_antigravity(live):
     cfg = live.admin("GET", "/status-bar/config")
     assert "enabled_providers" in cfg
     assert "pinned_metric" in cfg
+    assert cfg["indicator_enabled"] is True
+    assert live.admin("POST", "/status-bar/config", json={"indicator_enabled": False})["indicator_enabled"] is False
+    assert live.admin("GET", "/status-bar")["config"]["indicator_enabled"] is False
+    assert live.admin("POST", "/status-bar/config", json={"indicator_enabled": True})["indicator_enabled"] is True
 
     # Test POST /status-bar/config
     updated = live.admin("POST", "/status-bar/config", json={

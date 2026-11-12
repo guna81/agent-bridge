@@ -138,6 +138,7 @@ export interface AllRateLimits {
 }
 
 export interface StatusBarConfig {
+  indicator_enabled: boolean;
   enabled_providers: {
     codex: boolean;
     claude: boolean;

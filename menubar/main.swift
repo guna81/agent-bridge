@@ -62,6 +62,7 @@ struct ProviderRateLimits: Decodable {
 }
 
 struct StatusBarServerConfig: Decodable {
+    let indicator_enabled: Bool?
     let pinned_metric: String?
     let selected_clis: [String]?
     let refresh_interval_seconds: Int?
@@ -284,6 +285,7 @@ class StatusBarController: NSObject {
     // MARK: - UI Updates
     
     private func updateUI() {
+        statusItem.isVisible = latestData?.config?.indicator_enabled ?? true
         guard let button = statusItem.button else { return }
         
         if isOffline {
