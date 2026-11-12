@@ -11,6 +11,9 @@ def test_cli_start_and_stop(tmp_path):
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
     env = os.environ.copy()
+    # The managed service must not seed the integration suite's shared database.
+    for key in ('PROXY_DATABASE_URL', 'PROXY_QUEUE_BACKEND', 'PROXY_REDIS_URL'):
+        env.pop(key, None)
     env['AGENTBRIDGE_HOME'] = str(tmp_path)
     env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
     command = [sys.executable, '-m', 'app.cli']
