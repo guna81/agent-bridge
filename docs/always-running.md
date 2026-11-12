@@ -1,16 +1,16 @@
 # Always-Running Service Guide
 
-This guide explains how to run **LLM CLI Gateway (ai-credit-proxy)** as a persistent, high-availability background service across **macOS**, **Linux**, **Windows**, and **Docker**.
+This guide covers the optional source-checkout service scripts for **AgentBridge** on macOS, Linux, Windows, and Docker. They are separate from the packaged `agentbridge start` command, which runs in the background but does not register a login service. Configure the source server first using the [README](../README.md#run-the-source-server-directly), and avoid running two gateways on the same port. These service identifiers retain the historical `ai-credit-proxy` name. The scripts can stop an existing process listening on the configured port; inspect the port before installing or starting a service.
 
 ---
 
 ## What "Always-Running" Means
 
 When configured as a daemon/service, the gateway provides:
-1. **Auto-Restart on Crash (`KeepAlive`)**: If an unhandled exception or process termination occurs, the supervisor immediately relaunches the app.
-2. **Boot / Login Persistence**: Automatically starts whenever the system boots or the user logs in—no terminal session required.
+1. **Restart policies**: Supported supervisors can relaunch the gateway after a failure; behavior depends on the selected service.
+2. **Boot / Login Persistence**: The configured service can start at boot or user login, depending on the platform.
 3. **Credential & Environment Preservation**: Runs in the user context with access to `$HOME`, preserving CLI logins and credentials (`~/.claude`, `~/.codex`, `~/.gemini`, etc.).
-4. **Log Rotation & Monitoring**: Outputs stdout/stderr to dedicated log files and exposes `/healthz` for health checks.
+4. **Logging and monitoring**: Writes logs and exposes `/healthz` for health checks. Configure log rotation separately if needed.
 
 ---
 
@@ -100,13 +100,13 @@ systemctl --user restart ai-credit-proxy.service
 
 ### Keeping the Service Running Without Active SSH Sessions (Linger)
 
-By default, Linux systemd terminates user services when all SSH/desktop sessions log out. `./manage-service.sh install` automatically executes:
+By default, Linux systemd terminates user services when all SSH/desktop sessions log out. `./manage-service.sh install` attempts to run:
 
 ```bash
 loginctl enable-linger "$USER"
 ```
 
-This instructs systemd to keep your user service running 24/7 across logouts and server reboots.
+If enabled successfully, linger lets the user service remain active after logout. The command may require administrator authorization; verify the setting on your system.
 
 - **Unit File**: `~/.config/systemd/user/ai-credit-proxy.service`
 - **Log Files**: `~/.local/state/ai-credit-proxy/server.log` (or `~/.ai-credit-proxy/logs/server.log`)
@@ -218,14 +218,14 @@ pm2 logs ai-credit-proxy
 
 ## Health Check & Monitoring
 
-Every service installation can be monitored using:
+The source server defaults to port 8000 when configured from `.env.example`. Substitute your configured `PROXY_PORT`; the packaged CLI defaults to 43187. The service manager scripts use 8765 for their checks if `backend/.env` does not specify a port, so set `PROXY_PORT` explicitly in that file. For example:
 
 ```bash
 # Basic liveness check (returns {"ok":true})
-curl -s http://127.0.0.1:8765/healthz
+curl -s http://127.0.0.1:8000/healthz
 
 # Prometheus metrics (if PROXY_METRICS_PUBLIC=true or with admin Bearer token)
-curl -s http://127.0.0.1:8765/metrics
+curl -s http://127.0.0.1:8000/metrics
 ```
 
 ---
@@ -233,11 +233,11 @@ curl -s http://127.0.0.1:8765/metrics
 ## Troubleshooting
 
 ### Port Already in Use (`[Errno 48]` or `[Errno 98]`)
-If another process is using port `8765` (or the port defined in `backend/.env`):
+If another process is using the port configured in `backend/.env`:
 - Run `./manage-service.sh status` to see the listening PID.
 - Run `./manage-service.sh stop` or `./manage-service.sh restart` to cleanly terminate and relaunch.
 
 ### CLI Credentials Not Found
 If the service starts but cannot find your provider CLIs (`claude`, `codex`, `agy`):
 - Verify the CLI is in your user `PATH` (e.g. `~/.local/bin` or `/opt/homebrew/bin`).
-- The service definitions in `manage-service.sh` automatically include standard user binary directories (`~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin`, `/bin`).
+- The service definitions in `manage-service.sh` include standard user binary directories (`~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin`, `/bin`).

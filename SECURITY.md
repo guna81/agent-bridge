@@ -14,7 +14,6 @@ The proxy runs third-party command-line agents as subprocesses on behalf of API 
   callers you trust, ideally inside a container. Never combine "skip all permission prompts" with untrusted callers.
 - Raw mode reduces what a CLI can do but is best-effort for CLIs whose built-in tools cannot be removed
   (`docs/raw-mode.md`). The provided Docker setup (read-only root, no capabilities) is the recommended isolation.
-- The admin token grants full control, including provider API keys' use. Rotate it if it may have leaked: change
-  `PROXY_ADMIN_TOKEN` (or delete `data/admin_token`) and restart.
+- The admin token grants full control, including provider API keys' use. For the standalone server, rotate it by changing `PROXY_ADMIN_TOKEN` (or deleting `data/admin_token` if it is generated) and restarting. The packaged CLI stores its generated credentials in `~/.agentbridge/secrets.json`; protect that file and back it up securely.
 - Changing `PROXY_KEY_PEPPER` invalidates every issued key. Losing `PROXY_SECRET_KEY` makes stored provider API
   keys unreadable.

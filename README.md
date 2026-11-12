@@ -1,95 +1,92 @@
-# AgentBridge
+<p align="center"><img src="docs/assets/agentbridge-icon.svg" alt="AgentBridge logo" width="96" height="96"></p>
 
-Turn the coding CLIs you already have (Claude Code, OpenAI Codex, Google Antigravity, Gemini CLI, or any custom
-CLI) into a **self-hosted, OpenAI-compatible and Anthropic-compatible API**, with per-user API keys, a credit
-ledger, per-key limits and a web UI.
+<h1 align="center">AgentBridge</h1>
 
-```
-client (OpenAI SDK / Anthropic SDK / curl)
-   │  POST /v1/chat/completions   POST /v1/messages
-   ▼
-auth · key limits · rate limit · queue ──► adapter ──► claude -p … | codex exec … | agy -p … | gemini -p … | custom CLI
-   │                                         (own temp dir, minimal env, own process group)
-   └─► ledger (credits) ◄── usage parsed from the CLI's output
-```
+<p align="center">Track AI agent subscription usage and connect your tools to a local API gateway.</p>
+<p align="center"><a href="https://guna81.github.io/agent-bridge/">Website</a> · <a href="https://github.com/guna81/agent-bridge/releases/latest">Latest release</a> · <a href="docs/releases.md">Release guide</a></p>
 
-Each request runs the CLI as a non-interactive subprocess in a throwaway directory, the answer is streamed back,
-and the cost is charged to the caller's credits.
+AgentBridge brings two workflows together: monitor available subscription usage for supported coding agents, and expose configured agent CLIs through OpenAI-compatible and Anthropic-compatible APIs. The CLI runs a local gateway, opens a web dashboard, and can show usage in the macOS menu bar or a Windows or Linux system tray.
 
-> **Subscription logins are for personal use only.** Anthropic's terms restrict consumer-subscription OAuth tokens
-> to Claude Code and Claude.ai, and say products serving other users should use API keys. Check the terms of the
-> other CLIs yourself. Providers therefore default to `api_key` auth. The `oauth_cli` mode (and reusing the
-> server user's own CLI login) only works with `PROXY_SINGLE_USER_PERSONAL_USE=true`, which is meant for one
-> person running the proxy for themselves on their own machine.
+## Install
 
-## What is it for?
+Prebuilt packages include the CLI and dashboard; you do not need to install Python or Node.js.
 
-| Use case | How |
-|---|---|
-| **Use your own tools with the CLIs you have.** Point any OpenAI/Anthropic SDK, editor plugin or script at one local URL. | Run the proxy on your machine, enable a provider, create a key, set `base_url` to `http://127.0.0.1:8000/v1`. |
-| **Share one provider API key with a team, safely.** Give each person or service their own key instead of the real one. | Add users, top up credits, issue keys with a budget, expiry and model allow-list. Revoke one key without touching the rest. |
-| **Meter spend.** See who spent what and limit new requests. | Credit ledger, daily usage chart, per-key `budget_usd`, rate limit, Prometheus `/metrics`. |
-| **One API in front of many models.** Switch between Claude, Codex and Gemini by changing the `model` string. | Model ids are `provider/model`, e.g. `claude/haiku`, `codex/default`. Both API dialects work with every provider. |
-| **Run agents behind an API.** Let a CLI work on a real project directory, or run your own agent loop with `tools`. | Agent mode with `workdir`, function calling on every provider. See [Running custom agents](#running-custom-agents). |
-| **Wrap any command-line program as an API.** | Register it as a custom CLI in the UI. |
-
-## Features
-
-- **Two API dialects**: `/v1/chat/completions` (OpenAI) and `/v1/messages` (Anthropic), both with streaming.
-- **Providers**: `claude`, `codex`, `agy`, `gemini`, plus any binary you describe in the UI. A direct-API backend
-  bypasses the CLI for Claude and Gemini models.
-- **Function calling** (`tools`) on every provider, and **image input** on Claude and Codex.
-- **Users, credits and keys**: hashed keys, per-key spending budget, expiry and model allow-list.
-- **Raw or agent mode** per provider; agent mode can be pinned to a project directory.
-- **Operations**: Prometheus `/metrics`, usage dashboard, SQLite or Postgres, optional Redis for multi-instance
-  queueing and rate limiting.
-
-## CLI quick start
-
-AgentBridge runs a local gateway with a usage indicator in the macOS menu bar or the Windows/Linux system tray. Once a release has been published, install its packaged CLI without Python or Node.js:
+**macOS (Apple Silicon) and Linux (x86-64):**
 
 ```sh
-# macOS Apple Silicon or Linux x86-64
 curl -fsSL https://raw.githubusercontent.com/guna81/agent-bridge/main/install.sh | sh
 ```
 
+**Windows (x86-64, PowerShell):**
+
 ```powershell
-# Windows x86-64, PowerShell
 irm https://raw.githubusercontent.com/guna81/agent-bridge/main/install.ps1 | iex
 ```
 
-Run `agentbridge --version` to see the installed version. The dashboard sidebar also shows it. The CLI and dashboard periodically check GitHub for a newer stable release and show an update notice; checks are cached and failures do not prevent normal use.
+The installers download the [latest release](https://github.com/guna81/agent-bridge/releases/latest) and verify its SHA-256 checksum. On macOS and Linux, ensure `~/.local/bin` is on your `PATH`; on Windows, open a new terminal after installation. Release binaries are unsigned. Supported Linux binaries require glibc and a system at least as recent as Ubuntu 22.04; the tray requires a supported X11 desktop. Windows and Linux packages are built and smoke-tested in CI, but interactive tray and provider login behavior still needs desktop testing.
 
-The installers download the latest GitHub Release and verify its SHA-256 checksum. Open a new terminal if necessary, then run `agentbridge start --personal` and `agentbridge dashboard`. The macOS and Linux installer reports where to add the command to your PATH. The Windows installer adds its command directory to your user PATH. Run `agentbridge update` to upgrade an installer-managed release; restart a running gateway afterward. You can also rerun the installer. Previous package files and the old launcher are retained. Release binaries are currently unsigned. The installers need a published release with the matching assets; they do not build from source.
+## Get started
 
-For development, install from a checkout with Python 3.12 (via [uv](https://docs.astral.sh/uv/)) and Node.js/npm:
+1. Install and sign in to the agent CLIs you want to use, separately from AgentBridge. Usage availability varies by provider and platform.
+2. Start AgentBridge and open its signed-in dashboard:
 
-```bash
+   ```sh
+   agentbridge start --personal
+   agentbridge dashboard
+   ```
+
+3. In **Providers**, review and enable the providers you want. Existing provider settings are not overwritten. In **Subscription usage**, inspect available limits; in **Status indicator**, choose up to two providers, the display style, and refresh interval.
+4. To use the gateway from another app, add a user and create a key under **API keys & users**. Point an OpenAI-compatible client at `http://127.0.0.1:43187/v1` and use a `provider/model` identifier. The **API quick start** and **Playground** pages provide examples.
+
+`--personal` enables reuse of this machine's CLI logins for personal use and configures newly created providers accordingly. Review provider terms before using subscription credentials through an API. For API-key mode, run `agentbridge start --api-key-mode` instead. The dashboard command opens the app signed in; for manual sign-in use `agentbridge dashboard --show-token` and keep the token private.
+
+> **Subscription logins are for personal use only.** Anthropic's terms restrict consumer-subscription OAuth tokens to Claude Code and Claude.ai. Check the terms of other providers before using their subscription credentials. The `oauth_cli` mode and reuse of the server user's CLI login require personal-use mode.
+
+## Everyday commands
+
+```sh
+agentbridge status                # gateway health and address
+agentbridge dashboard             # open the signed-in dashboard
+agentbridge --version             # installed version
+agentbridge update                # install the latest stable release
+agentbridge stop                  # stop gateway and indicator
+agentbridge start                 # start using the saved authentication mode
+agentbridge start --port 43188    # choose another port
+agentbridge start --no-tray       # run without a status indicator
+```
+
+After an update, run `agentbridge stop` followed by `agentbridge start` to use the new version. Updates retain the existing installation files and user data. AgentBridge stores its database, secrets, and logs in `~/.agentbridge` (override with `AGENTBRIDGE_HOME`) and binds to loopback by default. For tray startup errors on Windows or Linux, check `~/.agentbridge/tray.log`. The CLI does not register an automatic login service.
+
+The indicator shows remaining capacity: its bars shrink as usage increases. The compact icon opens the same usage details, and the menu includes percentages and reset times when available. Windows and Linux use compact tray graphics; an always-visible widget is not currently available. See the [status indicator guide](docs/mac-status-bar.md).
+
+## Features
+
+- **Subscription usage**: view available 5-hour and weekly limits and reset times for supported providers.
+- **Local API gateway**: OpenAI-compatible `/v1/chat/completions` and Anthropic-compatible `/v1/messages`, including streaming.
+- **Providers**: Claude Code, Codex, Antigravity, Gemini CLI, custom CLIs, and supported direct API backends.
+- **Access and accounting**: users, hashed API keys, credit ledger, budgets, expiry, and model restrictions.
+- **Operations**: request history, usage export, Prometheus metrics, SQLite or PostgreSQL, and optional Redis queues.
+- **Agents and tools**: function calling, image input where supported, and optional agent mode.
+
+Requests run provider CLIs as subprocesses and charge applicable gateway usage to the caller's credits. Agent mode can run commands and edit files as the server user; enable it only for trusted callers.
+
+## Install from source
+
+For development, install Python 3.12 via [uv](https://docs.astral.sh/uv/) and Node.js/npm, then:
+
+```sh
 git clone https://github.com/guna81/agent-bridge.git
-cd llm-cli-gateway
+cd agent-bridge
 ./install-cli.sh
 agentbridge start --personal
 agentbridge dashboard
 ```
 
-On Windows, run `./install-cli.ps1` from PowerShell instead of `./install-cli.sh`, add the printed installation directory to your PATH, and open a new terminal. Keep the checkout in place on all platforms.
+On Windows, use `./install-cli.ps1` in PowerShell instead. Follow the printed PATH instructions and keep the checkout in place: the installed command uses its Python environment and built dashboard. `agentbridge update` is for packaged installations; update a source checkout with Git and rebuild it.
 
-Keep the checkout in place: the installed command uses its Python environment and built dashboard. Add `~/.local/bin` to your PATH if needed. The dashboard command opens the dashboard signed in. Use `agentbridge dashboard --show-token` if you need to sign in manually. Create a user and API key in **Keys & usage**, then use `http://127.0.0.1:43187/v1` as your API base URL. `--personal` enables reuse of this machine's CLI logins for personal use and configures newly created providers to use them. Install and sign in to each CLI separately. Review provider terms before using subscription credentials through an API. Existing provider settings are never overwritten; edit them in the dashboard if needed.
+## Run the source server directly
 
-```bash
-agentbridge status
-agentbridge stop
-agentbridge start                  # remembers the last authentication mode
-agentbridge start --api-key-mode   # disable personal login reuse
-agentbridge start --port 43188      # choose another port
-agentbridge start --no-tray        # gateway only
-```
-
-In the dashboard, open **Status bar** to select providers, choose between compact and usage-bar indicators, and set the refresh interval. Changes reach the indicator on its next poll. Windows and Linux show percentages in the tray menu because tray icons are small. The always-visible desktop widget is not yet available.
-
-The CLI stores its database, secrets, and logs in `~/.agentbridge` (override with `AGENTBRIDGE_HOME`). The gateway binds to loopback. The tray menu displays 5-hour and weekly percentages remaining and reset times for available providers; select up to two providers for the icon. Windows and Linux tray icons show compact colored bars, with percentages in the menu. Linux release builds target glibc-based systems at least as recent as Ubuntu 22.04; Alpine Linux and older systems are not supported by these binaries. On Linux, the tray requires a graphical X11 session and a desktop with a system tray; Wayland-only or headless environments may not support it. If the tray fails to start, the gateway remains available; inspect `~/.agentbridge/tray.log`. The command does not register an automatic login service. Some provider usage sources and interactive CLI login flows are platform-specific and may not be available on every OS.
-
-## Quick start (local)
+This alternative runs the standalone source server on port **8000** by default. It is separate from the packaged CLI, which defaults to port **43187**.
 
 **You need:** macOS or Linux, [`uv`](https://docs.astral.sh/uv/) (it installs Python 3.12 for you), Node 20+, and at
 least one CLI on your `PATH` that you have signed in to or have an API key for (`claude`, `codex`, `agy`, `gemini`).
@@ -97,7 +94,7 @@ least one CLI on your `PATH` that you have signed in to or have an API key for (
 ```bash
 # 1. Get the code
 git clone https://github.com/guna81/agent-bridge.git
-cd llm-cli-gateway
+cd agent-bridge
 
 # 2. Configure
 cp .env.example backend/.env          # the server reads backend/.env
@@ -121,8 +118,8 @@ Open http://127.0.0.1:8000 and sign in with the admin token (`PROXY_ADMIN_TOKEN`
 **Then, in the UI (about two minutes):**
 
 1. **Providers** → switch on a provider, then press **Run test**. Test runs are logged but not charged.
-2. **Keys & usage** → add a user, add credits, create a key (shown once).
-3. **Playground** → chat with it, or open **Quick start** for copy-paste client code.
+2. **API keys & users** → add a user, add credits, create a key (shown once).
+3. **Playground** → chat with it, or open **API quick start** for copy-paste client code.
 
 And from your own code:
 
@@ -138,6 +135,8 @@ the server's `PATH`; "not signed in" means that CLI has no login or API key for 
 
 ### Running as an Always-On Background Service
 
+These optional scripts operate on a source checkout and are separate from `agentbridge start`. They may stop an existing process on the configured port; check the port before using them.
+
 To keep the gateway continuously running in the background across reboots and crashes (without keeping a terminal window open):
 
 - **macOS & Linux**:
@@ -150,13 +149,13 @@ To keep the gateway continuously running in the background across reboots and cr
   ./manage-service.sh menubar    # launch native macOS Menu Bar app with live CLI progress bar
   ./manage-service.sh uninstall  # remove service configuration
   ```
-- **macOS Status Bar Companion**:
+- **macOS menu bar helper**:
   ```bash
   ./manage-service.sh menubar start   # starts native Swift menu bar progress bar app
   ./manage-service.sh menubar status  # check menu bar app state
   ./manage-service.sh menubar stop    # stop menu bar app
   ```
-  See the **[macOS Status Bar App Guide](docs/mac-status-bar.md)** for details on switching CLIs, budget targets, and display formats.
+  See the **[status indicator guide](docs/mac-status-bar.md)** for available display settings.
 - **Windows (PowerShell)**:
   ```powershell
   powershell -ExecutionPolicy Bypass -File .\manage-service.ps1 install
@@ -191,13 +190,15 @@ verify for Linux, so pass its install command from Google's docs as `AGY_INSTALL
    - **CLI login** (needs `PROXY_SINGLE_USER_PERSONAL_USE=true`): tick *Reuse this machine's existing CLI login*, or
      click **Connect account** to run the CLI's login in a terminal on the server and finish it in your browser.
 3. Open the card and press **Run test**. Test runs are logged but not charged.
-4. **Keys & usage** → add a user, add credits, create a key (shown once; stored hashed).
-5. **Playground** → chat with any enabled model, or see **Quick start** in the UI for copy-paste client code.
+4. **API keys & users** → add a user, add credits, create a key (shown once; stored hashed).
+5. **Playground** → chat with any enabled model, or see **API quick start** in the UI for copy-paste client code.
 
 Custom CLIs: *Add custom CLI* → program path, arguments (`{prompt}`, `{model}`, `{system}`), output format
 `text|json|ndjson` and a JSONPath to the answer.
 
 ## API
+
+The examples below use port 8000 for the standalone source server. For the packaged CLI, replace it with 43187 or your configured port.
 
 Model ids are `provider/model` (`GET /v1/models` lists what the key may use).
 
@@ -260,7 +261,7 @@ Over budget → `429 key_budget_exhausted`; disallowed model → `403 model_not_
 
 The gateway reserves available credits and key budget when a request starts, and settles the actual charge on completion. A reservation prevents concurrent requests from using the same funds. These are **admission limits, not guaranteed hard spending caps**: only the Claude CLI receives a per-run dollar limit, and any backend can report a final cost above its reservation. Direct APIs and the other CLIs do not enforce the dollar limit. Use provider-side spending controls where a hard limit is required.
 
-The **Keys & usage** page shows outstanding reservations and provides a guarded release action. Its usage explorer filters by user, key, provider, model and UTC date, supports paging, and exports the loaded rows to CSV. Cost totals in the explorer apply only to loaded billed rows; test runs are shown but not billed. The Overview warns when available credits are below $1 or a key has used at least 80% of a budget. Browser alerts can be enabled on the Overview page; they require browser permission and the page to be open. The overview refreshes these checks every minute.
+The **Request usage** page shows outstanding reservations and provides a guarded release action. Its usage explorer filters by user, key, provider, model and UTC date, supports paging, and exports the loaded rows to CSV. Cost totals in the explorer apply only to loaded billed rows; test runs are shown but not billed. The Overview warns when available credits are below $1 or a key has used at least 80% of a budget. Browser alerts can be enabled on the Overview page; they require browser permission and the page to be open. The overview refreshes these checks every minute.
 
 Reservations remain in the database after an unclean shutdown to avoid silently permitting overspend. An administrator can inspect `GET /admin/reservations`. After verifying the associated request has stopped on every instance and reconciling any upstream charges, release an orphan with `DELETE /admin/reservations/{request_id}`; releasing an active reservation allows overspending. The available credit balance excludes outstanding reservations.
 
@@ -316,7 +317,7 @@ Skipping permission prompts is a separate, explicit opt-in per provider and is n
 - Each request: fresh temp workdir (deleted after), minimal environment (PATH, HOME, locale and proxy/CA
   variables only), no server secrets, own process group killed on timeout or disconnect.
 - Proxy keys are hashed (HMAC-SHA256 with a pepper); provider API keys are Fernet-encrypted; logs are structured
-  JSON and omit prompts unless `PROXY_DEBUG_LOG_PROMPTS=true`. The admin token is never put in a URL.
+  JSON and omit prompts unless `PROXY_DEBUG_LOG_PROMPTS=true`. The dashboard launch command passes the admin token in a URL fragment, which the dashboard removes after loading; the fragment is not sent in HTTP requests. The login WebSocket authenticates in its first message.
 - Global and per-user concurrency, queue timeout, per-key rate limit, request-size and image-size limits. Binds to
   localhost by default.
 - Billing: Claude Code reports `total_cost_usd` (used as is). The other CLIs report tokens only, so cost is

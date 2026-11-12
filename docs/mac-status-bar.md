@@ -1,69 +1,23 @@
-# macOS Menu Bar / Status Bar App
+# Status indicator
 
-The **LLM Gateway Status Bar Companion** (`LLMGatewayBar`) is a lightweight, native macOS Swift application that lives directly in your macOS top menu bar / status bar.
+AgentBridge can display subscription usage in the macOS menu bar or the Windows and Linux system tray while its gateway is running. The dashboard's **Status indicator** page controls the display on the machine running the gateway.
 
-It provides real-time visibility into the exact subscription rate limits and usage for **Google Antigravity**, **Claude Code**, and **OpenAI Codex**, matching their native terminal `/usage` output.
+## Start and configure
 
----
-
-## Live Monitored Metrics
-
-### 1. Google Antigravity (via embedded Language Server ConnectRPC)
-- **Subscription Tier**: e.g. `Google AI Pro (g1-pro-tier)`
-- **Gemini 5h limit**: `99% left (Resets 12:23 AM)`
-- **Gemini Weekly limit**: `52% left (Resets Nov 14 at 12:01 PM)`
-- **Claude / GPT 5h limit (3p)**: `100% left (Resets 12:30 AM)`
-- **Claude / GPT Weekly limit (3p)**: `100% left (Resets Nov 19 at 7:30 PM)`
-
-### 2. Claude Code (from `~/.claude.json`)
-- **Current session**: `7% used (Resets 9:09pm)`
-- **Current week (all models)**: `93% used (Resets Nov 15 at 9:29am)`
-- **Current week (Fable / Scoped)**: `61% used (Resets Nov 15 at 9:29am)`
-
-### 3. OpenAI Codex (from `~/.codex/logs_2.sqlite`)
-- **5h limit**: `0% left (Resets 9:31 PM)`
-- **Weekly limit**: `48% left (Resets 1:50 PM on 18 Nov)`
-
----
-
-## Status Bar Display Features
-
-- **Progress Bar Indicator**:
-  - For Antigravity & Codex: Displays filled progress bar of **% left** (Red outline when exhausted).
-  - For Claude Code: Displays filled progress bar of **% used** (Green `< 70%`, Amber `70%-90%`, Red `≥ 90%`).
-  - Blue pulsing indicator (`⚡`) when requests are actively running through the proxy.
-- **One-Click Switcher**:
-  Click any limit in the menu dropdown to instantly pin it to your macOS top status bar:
-  - Antigravity: Gemini 5h
-  - Antigravity: Gemini Weekly
-  - Antigravity: Claude/GPT 5h
-  - Antigravity: Claude/GPT Weekly
-  - Claude: Current session
-  - Claude: Current week (all models)
-  - Claude: Current week (Fable)
-  - Codex: 5h limit
-  - Codex: Weekly limit
-- **Status Bar Formats**:
-  - `Standard` (e.g. `agy 5h: 99% left` / `claude: 7% used` / `codex 5h: 0% left`)
-  - `Full Details` (e.g. `agy 5h: 99% left (12:23 AM)`)
-  - `Progress Bar Only`
-- **Bi-directional Configuration Sync**:
-  Preferences (active providers, pinned metric) set in the Web Dashboard or Status Bar dropdown stay automatically synchronized in real-time.
-
----
-
-## Quick Controls
-
-```bash
-# Check status
-./manage-service.sh menubar status
-
-# Restart / reload changes
-./manage-service.sh menubar restart
-
-# Stop app
-./manage-service.sh menubar stop
-
-# Rebuild from source
-./manage-service.sh menubar build
+```sh
+agentbridge start --personal
+agentbridge dashboard
 ```
+
+Choose one or two providers, a display style, and a refresh interval on **Status indicator**, then save. Changes reach the indicator on its next poll. Install and sign in to the relevant agent CLIs separately; available usage data and reset times depend on the provider and platform.
+
+- **Usage bars:** the top bar represents the 5-hour window and the lower bar represents the weekly window. Both show remaining capacity, so they shrink as usage increases. Select up to two providers.
+- **Compact icon:** shows the AgentBridge mark. Click it to see available provider usage and reset times.
+
+Click the indicator for details, provider selection, dashboard access, and refresh. A missing value is shown as unavailable; it does not mean the limit is zero. The Windows and Linux tray uses compact graphics, with percentages in its menu. An always-visible desktop widget is not currently available.
+
+The Linux tray requires a supported graphical X11 desktop with a system tray. Windows and Linux packages pass CI smoke tests, but interactive desktop and provider login behavior still needs real-device testing. If a tray helper fails to start, the gateway can continue running; check `~/.agentbridge/tray.log`.
+
+## Source-based macOS helper
+
+The packaged CLI starts the native macOS helper automatically. For a source checkout, `./menubar/build.sh` builds the helper and `./manage-service.sh menubar {start|stop|restart|status|build}` manages it separately. The source service and the packaged CLI are separate launch methods; avoid running both gateways on the same port.

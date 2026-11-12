@@ -15,8 +15,8 @@ the UI dev server with `npm run dev` (from `frontend/`; set `VITE_BACKEND` if th
 ## Before you open a pull request
 
 ```bash
-cd backend && uv run pytest          # must pass; needs no accounts or network
-cd frontend && npm run build         # type-checks and builds the UI
+(cd backend && uv run pytest)          # must pass; needs no provider accounts
+(cd frontend && npm run build)         # type-checks and builds the UI
 ```
 
 - Add or update tests for behaviour you change. The suite drives a real server against `tests/fake_cli.py`, a

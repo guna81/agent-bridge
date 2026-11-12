@@ -1,8 +1,10 @@
 # Exposing the proxy beyond localhost
 
 The server binds to `127.0.0.1` by default and the compose file publishes `127.0.0.1:8000` only. It speaks plain HTTP and
-the admin UI carries the admin token (the login websocket takes it as `?token=` because browsers can't set WebSocket headers).
+the admin UI carries the admin token. The login WebSocket authenticates in its first message. `agentbridge dashboard` opens a URL containing the token in a fragment, which the dashboard removes after loading; fragments are not sent to the server.
 **Do not expose it without TLS.**
+
+The examples use port 8000 for the standalone source server. For a packaged CLI gateway, use its configured port (43187 by default).
 
 ## Caddy (automatic HTTPS)
 ```
