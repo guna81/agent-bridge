@@ -27,6 +27,12 @@ from .deps import require_admin
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 
 
+@router.get("/update-status")
+async def update_status():
+    from ..updates import check_update
+    return await asyncio.to_thread(check_update, get_settings().data_dir)
+
+
 @router.get("/reservations")
 async def list_reservations():
     with session_scope() as s:

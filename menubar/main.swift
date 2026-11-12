@@ -311,21 +311,25 @@ class StatusBarController: NSObject {
     }
 
     private func drawBridgeIcon() -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+        let image = NSImage(size: NSSize(width: 22, height: 20), flipped: false) { _ in
             NSColor.black.setStroke()
             let bridge = NSBezierPath()
-            bridge.lineWidth = 1.6
+            // The AgentBridge mark, adapted to a monochrome template for the menu bar.
+            bridge.lineWidth = 1.7
             bridge.lineCapStyle = .round
             bridge.lineJoinStyle = .round
-            bridge.move(to: NSPoint(x: 2, y: 7))
-            bridge.curve(to: NSPoint(x: 9, y: 12), controlPoint1: NSPoint(x: 5, y: 7), controlPoint2: NSPoint(x: 6, y: 12))
-            bridge.curve(to: NSPoint(x: 16, y: 7), controlPoint1: NSPoint(x: 12, y: 12), controlPoint2: NSPoint(x: 13, y: 7))
-            bridge.move(to: NSPoint(x: 3, y: 5))
-            bridge.line(to: NSPoint(x: 15, y: 5))
-            bridge.move(to: NSPoint(x: 6, y: 5))
-            bridge.line(to: NSPoint(x: 6, y: 8.5))
-            bridge.move(to: NSPoint(x: 12, y: 5))
-            bridge.line(to: NSPoint(x: 12, y: 8.5))
+            bridge.move(to: NSPoint(x: 3, y: 6.75))
+            bridge.line(to: NSPoint(x: 5.5, y: 6.75))
+            bridge.line(to: NSPoint(x: 8.1, y: 11.5))
+            bridge.curve(to: NSPoint(x: 9.9, y: 11.5), controlPoint1: NSPoint(x: 8.5, y: 12.25), controlPoint2: NSPoint(x: 9.5, y: 12.25))
+            bridge.line(to: NSPoint(x: 12.5, y: 6.75))
+            bridge.line(to: NSPoint(x: 15, y: 6.75))
+            bridge.move(to: NSPoint(x: 7.3, y: 6.75))
+            bridge.line(to: NSPoint(x: 10.7, y: 6.75))
+            // Fill the taller, wider image while keeping the mark centered.
+            let transform = AffineTransform(m11: 1.3, m12: 0, m21: 0, m22: 1.8, tX: -0.7, tY: -7.1)
+            bridge.transform(using: transform)
+            bridge.lineWidth *= 1.3
             bridge.stroke()
             return true
         }

@@ -58,7 +58,9 @@ curl -fsSL https://raw.githubusercontent.com/guna81/llm-cli-gateway/main/install
 irm https://raw.githubusercontent.com/guna81/llm-cli-gateway/main/install.ps1 | iex
 ```
 
-The installers download the latest GitHub Release and verify its SHA-256 checksum. Open a new terminal if necessary, then run `agentbridge start --personal` and `agentbridge dashboard`. The macOS and Linux installer reports where to add the command to your PATH. The Windows installer adds its command directory to your user PATH. Run the installer again to upgrade; previous package files and the old launcher are retained. Release binaries are currently unsigned. The installers need a published release with the matching assets; they do not build from source.
+Run `agentbridge --version` to see the installed version. The dashboard sidebar also shows it. The CLI and dashboard periodically check GitHub for a newer stable release and show an update notice; checks are cached and failures do not prevent normal use.
+
+The installers download the latest GitHub Release and verify its SHA-256 checksum. Open a new terminal if necessary, then run `agentbridge start --personal` and `agentbridge dashboard`. The macOS and Linux installer reports where to add the command to your PATH. The Windows installer adds its command directory to your user PATH. Run `agentbridge update` to upgrade an installer-managed release; restart a running gateway afterward. You can also rerun the installer. Previous package files and the old launcher are retained. Release binaries are currently unsigned. The installers need a published release with the matching assets; they do not build from source.
 
 For development, install from a checkout with Python 3.12 (via [uv](https://docs.astral.sh/uv/)) and Node.js/npm:
 

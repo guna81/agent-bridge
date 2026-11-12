@@ -215,8 +215,45 @@ def stop():
     print("AgentBridge stopped.")
 
 
+def update_cli():
+    from app.updates import check_update
+    if not FROZEN:
+        raise RuntimeError("This is a source checkout. Update it with git and rebuild; agentbridge update is for release installations.")
+    result = check_update(DATA, force=True)
+    if not result["latest"]:
+        raise RuntimeError("Could not find a stable release. Check your connection or try again after a release is published.")
+    if not result["available"]:
+        print(f"AgentBridge {result['current']} is already up to date (latest: {result['latest']}).")
+        return
+
+    # Only replace a launcher that points to the currently running installation.
+    install_root = Path(os.environ.get("AGENTBRIDGE_INSTALL_ROOT", Path(os.environ.get("LOCALAPPDATA", "")) / "AgentBridge" if os.name == "nt" else Path.home() / ".local/share/agentbridge")).expanduser()
+    bin_dir = Path(os.environ.get("AGENTBRIDGE_BIN_DIR", install_root / "bin" if os.name == "nt" else Path.home() / ".local/bin")).expanduser()
+    launcher = bin_dir / ("agentbridge.cmd" if os.name == "nt" else "agentbridge")
+    try:
+        managed = str(Path(sys.executable).resolve()).lower() in launcher.read_text(encoding="utf-8").lower() if os.name == "nt" else launcher.is_symlink() and launcher.resolve() == Path(sys.executable).resolve()
+    except (OSError, UnicodeError):
+        managed = False
+    if not managed:
+        raise RuntimeError("The current executable is not linked to the expected installer launcher. Set AGENTBRIDGE_INSTALL_ROOT and AGENTBRIDGE_BIN_DIR to the original install locations, or rerun the installer manually.")
+    script = ROOT / "installer" / ("install.ps1" if os.name == "nt" else "install.sh")
+    if not script.is_file():
+        raise RuntimeError("This installation does not contain the updater. Rerun the installer manually to upgrade it.")
+    command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)] if os.name == "nt" else ["sh", str(script)]
+    print(f"Installing AgentBridge {result['latest']}…", flush=True)
+    completed = subprocess.run(command, check=False)
+    if completed.returncode:
+        raise RuntimeError("Update failed. Your existing installation and data were retained; see the installer output above.")
+    if state():
+        print("The gateway is still running the previous version. Run 'agentbridge stop' and 'agentbridge start' to use the update.")
+    else:
+        print("Update installed. Run 'agentbridge start' when ready.")
+
+
 def main():
     parser = argparse.ArgumentParser(prog="agentbridge", description="Run the local AgentBridge gateway and status bar")
+    from app.updates import VERSION, check_update
+    parser.add_argument("--version", action="version", version=f"AgentBridge {VERSION}")
     sub = parser.add_subparsers(dest="command", required=True)
     start_parser = sub.add_parser("start", help="start the gateway and system tray")
     start_parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"gateway port (default: {DEFAULT_PORT})")
@@ -226,9 +263,15 @@ def main():
     start_parser.add_argument("--no-tray", action="store_true")
     for name in ("stop", "status", "_serve", "_tray"):
         sub.add_parser(name)
+    sub.add_parser("update", help="install the latest stable release")
     dashboard_parser = sub.add_parser("dashboard", help="open the signed-in dashboard")
     dashboard_parser.add_argument("--show-token", action="store_true", help="print the admin token for manual sign-in")
     args = parser.parse_args()
+    if args.command not in ("_serve", "_tray", "update"):
+        update = check_update(DATA)
+        if update["available"]:
+            print(f"Update available: AgentBridge {update['current']} → {update['latest']}. "
+                  "Run 'agentbridge update' to install it.", file=sys.stderr)
     try:
         if args.command == "start":
             if not 1 <= args.port <= 65535:
@@ -242,6 +285,8 @@ def main():
                 print(f"Gateway: {'ready' if healthy(info['port'], credentials()['admin_token']) else 'not responding'} at http://127.0.0.1:{info['port']} (PID {info['pid']})")
             else:
                 print("AgentBridge is not running under this CLI.")
+        elif args.command == "update":
+            update_cli()
         elif args.command == "dashboard":
             info = state()
             if not info:

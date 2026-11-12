@@ -15,6 +15,7 @@ def test_cli_start_and_stop(tmp_path):
     for key in ('PROXY_DATABASE_URL', 'PROXY_QUEUE_BACKEND', 'PROXY_REDIS_URL'):
         env.pop(key, None)
     env['AGENTBRIDGE_HOME'] = str(tmp_path)
+    (tmp_path / 'update-check.json').write_text(json.dumps({'checked_at': __import__('time').time(), 'latest': None}))
     env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
     command = [sys.executable, '-m', 'app.cli']
     def run(*args):
@@ -36,6 +37,8 @@ def test_dashboard_opens_with_fragment_and_does_not_print_token(monkeypatch, cap
     from app import cli
     token = 'example+token/value'
     opened = []
+    from app import updates
+    monkeypatch.setattr(updates, 'check_update', lambda data: {'available': False})
     monkeypatch.setattr(cli, 'state', lambda: {'port': 8766})
     monkeypatch.setattr(cli, 'credentials', lambda: {'admin_token': token})
     monkeypatch.setattr(cli.webbrowser, 'open', lambda url: opened.append(url) or True)

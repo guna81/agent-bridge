@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { admin, ago, fullTime, KeyRow, LedgerRow, money, num, setPlaygroundKey, until, UserRow } from "../api";
+import { admin, ago, fullTime, KeyRow, money, num, setPlaygroundKey, until, UserRow } from "../api";
 import type { Tab } from "../App";
 import Operations from "../components/Operations";
 import { Confirm, CopyButton, Empty, ErrorNote, Field, Modal, Pill } from "../components/ui";
@@ -15,25 +15,21 @@ type Dialog =
 export default function Keys({ go, usageOnly = false }: { go: (t: Tab) => void; usageOnly?: boolean }) {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [keys, setKeys] = useState<KeyRow[]>([]);
-  const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [fresh, setFresh] = useState<{ key: string; user: string } | null>(null);
   const [showRevoked, setShowRevoked] = useState(false);
-  const [filter, setFilter] = useState<"all" | "billed" | "tests" | "failed">("all");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [u, k, l, p] = await Promise.all([
+      const [u, k, p] = await Promise.all([
         admin<UserRow[]>("GET", "/users"),
         admin<KeyRow[]>("GET", "/keys"),
-        admin<LedgerRow[]>("GET", "/ledger?limit=100"),
         admin<{ name: string; enabled: boolean; models: string[]; default_model: string }[]>("GET", "/providers"),
       ]);
       setUsers(u);
       setKeys(k);
-      setLedger(l);
       setModels(p.filter((x) => x.enabled).flatMap((x) => [...new Set([...x.models, x.default_model].filter(Boolean))].map((m) => `${x.name}/${m}`)));
       setError("");
     } catch (e) {
@@ -46,9 +42,7 @@ export default function Keys({ go, usageOnly = false }: { go: (t: Tab) => void; 
     setDialog(null);
     void load();
   };
-  const userName = (id: number | null) => (id === null ? "admin test" : users.find((u) => u.id === id)?.name ?? `#${id}`);
   const shownKeys = keys.filter((k) => showRevoked || !k.revoked);
-  const rows = ledger.filter((r) => (filter === "billed" ? r.user_id !== null : filter === "tests" ? r.user_id === null : filter === "failed" ? r.status !== "ok" : true));
 
   return (
     <>
@@ -217,70 +211,7 @@ export default function Keys({ go, usageOnly = false }: { go: (t: Tab) => void; 
       </section>
 
       </>}
-      {usageOnly && <>
-      <section className="card">
-        <div className="card-head">
-          <h2>Recent requests</h2>
-          <div className="row">
-            <div className="seg" role="group" aria-label="Filter requests">
-              {(["all", "billed", "tests", "failed"] as const).map((f) => (
-                <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>
-                  {f === "all" ? "All" : f === "billed" ? "Billed" : f === "tests" ? "Admin tests" : "Failed"}
-                </button>
-              ))}
-            </div>
-            <button className="ghost small" onClick={() => void load()}>
-              Refresh
-            </button>
-          </div>
-        </div>
-        {rows.length === 0 ? (
-          <Empty>Nothing to show.</Empty>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>Who</th>
-                  <th>Model</th>
-                  <th className="r">Tokens in / out</th>
-                  <th className="r">Cost</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td className="small" title={ago(r.created_at)}>
-                      {fullTime(r.created_at)}
-                    </td>
-                    <td>{r.user_id === null ? <span className="muted">admin test</span> : userName(r.user_id)}</td>
-                    <td>
-                      {r.provider}/{r.model}
-                    </td>
-                    <td className="r mono">
-                      {num(r.input_tokens)} / {num(r.output_tokens)}
-                    </td>
-                    <td className="r mono">
-                      {money(r.cost_usd)}
-                      {r.estimated && <span className="muted small"> est.</span>}
-                      {r.user_id === null && <span className="muted small"> (not billed)</span>}
-                    </td>
-                    <td>
-                      <Pill tone={r.status === "ok" ? "ok" : "bad"}>{r.status}</Pill>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="muted small">Showing the latest {rows.length} of up to 100 loaded. Times are in your local time zone.</p>
-      </section>
-
-      <Operations users={users} keys={keys} onChanged={() => void load()} />
-      </>}
+      {usageOnly && <Operations users={users} keys={keys} onChanged={() => void load()} />}
 
       {dialog?.kind === "user" && <UserDialog onClose={() => setDialog(null)} onDone={done} />}
       {dialog?.kind === "topup" && <TopUpDialog user={dialog.user} onClose={() => setDialog(null)} onDone={done} />}

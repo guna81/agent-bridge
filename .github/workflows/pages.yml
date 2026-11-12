@@ -5,6 +5,8 @@ on:
     paths:
       - 'docs/index.html'
       - 'docs/assets/agentbridge-icon.svg'
+      - 'backend/pyproject.toml'
+      - 'scripts/pages-version.py'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
@@ -22,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Add project version
+        run: python3 scripts/pages-version.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -31,6 +31,8 @@ command.append(str(root / 'scripts' / 'frozen_entry.py'))
 subprocess.run(command, check=True, env=env)
 package = out / 'agentbridge'
 shutil.copytree(root / 'frontend' / 'dist', package / 'frontend' / 'dist')
+(package / 'installer').mkdir()
+shutil.copy2(root / ('install.ps1' if os.name == 'nt' else 'install.sh'), package / 'installer')
 if sys.platform == 'darwin':
     native = root / 'menubar' / 'LLMGatewayBar'
     if not native.exists():

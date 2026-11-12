@@ -37,12 +37,19 @@ def usage_icon(data):
     if data.get("config", {}).get("display_mode", "bars") == "compact":
         image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
-        color = (38, 215, 218, 255)
-        draw.line([(5, 39), (13, 37), (20, 29), (26, 23), (32, 21),
-                   (38, 23), (44, 29), (51, 37), (59, 39)], fill=color, width=5, joint="curve")
-        draw.line((8, 46, 56, 46), fill=color, width=5)
-        draw.line((21, 32, 21, 46), fill=color, width=4)
-        draw.line((43, 32, 43, 46), fill=color, width=4)
+        # Match the app mark on a dark rounded tile so it remains visible on
+        # both light and dark system trays.
+        draw.rounded_rectangle((1, 1, 62, 62), radius=18, fill=(16, 17, 20, 255))
+        white = (247, 248, 250, 255)
+        blue = (101, 151, 255, 255)
+        points = [(12, 40), (21, 40), (29, 25), (30, 24), (32, 23),
+                  (34, 24), (35, 25), (43, 40), (52, 40)]
+        draw.line(points, fill=white, width=5, joint="curve")
+        for x, y in (points[0], points[-1]):
+            draw.ellipse((x - 2, y - 2, x + 2, y + 2), fill=white)
+        draw.line((26, 40, 38, 40), fill=blue, width=5)
+        for x in (26, 38):
+            draw.ellipse((x - 2, 38, x + 2, 42), fill=blue)
         return image
     image = Image.new('RGBA', (64, 64), (20, 29, 43, 255))
     draw = ImageDraw.Draw(image)

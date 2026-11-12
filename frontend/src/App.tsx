@@ -61,6 +61,7 @@ export default function App() {
   const [tokenInput, setTokenInput] = useState("");
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [error, setError] = useState("");
+  const [update, setUpdate] = useState<{ current: string; latest: string | null; available: boolean; release_url: string } | null>(null);
   const { isDark, toggle } = useTheme();
 
   const setTab = useCallback((t: Tab) => {
@@ -96,6 +97,14 @@ export default function App() {
     if (!authed) return;
     const t = setInterval(() => admin<AdminSettings>("GET", "/settings").then(setSettings).catch(() => {}), 5000);
     return () => clearInterval(t);
+  }, [authed]);
+
+  useEffect(() => {
+    if (!authed) { setUpdate(null); return; }
+    const check = () => admin<{ current: string; latest: string | null; available: boolean; release_url: string }>("GET", "/update-status").then(setUpdate).catch(() => {});
+    void check();
+    const timer = setInterval(check, 60 * 60 * 1000);
+    return () => clearInterval(timer);
   }, [authed]);
 
   if (checking) return <div className="splash">Loading…</div>;
@@ -179,9 +188,11 @@ export default function App() {
               Sign out
             </button>
           </div>
+          {update && <div className="sidebar-version">AgentBridge v{update.current}{update.available && <span> · Update available</span>}</div>}
         </div>
       </aside>
       <main className="content">
+        {update?.available && <div className="note update-notice" role="status"><div><strong>AgentBridge {update.latest} is available</strong><p className="small">You are running {update.current}. Run agentbridge update, then restart AgentBridge to use the new version.</p></div><a href={update.release_url} target="_blank" rel="noopener noreferrer">View release and install instructions ↗</a></div>}
         {tab === "overview" && settings && <Overview settings={settings} go={setTab} />}
         {tab === "subscription" && <SubscriptionUsage go={setTab} />}
         {tab === "providers" && settings && <Providers settings={settings} />}
