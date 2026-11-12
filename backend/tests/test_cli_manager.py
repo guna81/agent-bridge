@@ -46,3 +46,121 @@ def test_dashboard_opens_with_fragment_and_does_not_print_token(monkeypatch, cap
     assert cli.main() == 0
     assert opened == ['http://127.0.0.1:8766/#admin_token=example%2Btoken%2Fvalue']
     assert token not in capsys.readouterr().out
+
+
+def prepare_uninstall(tmp_path, monkeypatch):
+    from app import cli
+    root = tmp_path / 'installation'
+    executable_dir = root / 'releases' / 'release.test' / 'agentbridge'
+    executable_dir.mkdir(parents=True)
+    executable = executable_dir / ('agentbridge.exe' if os.name == 'nt' else 'agentbridge')
+    executable.touch()
+    bin_dir = tmp_path / 'bin'
+    bin_dir.mkdir()
+    launcher = bin_dir / ('agentbridge.cmd' if os.name == 'nt' else 'agentbridge')
+    if os.name == 'nt':
+        launcher.write_text(f'@echo off\n"{executable}" %*\n')
+    else:
+        launcher.symlink_to(executable)
+    data = tmp_path / 'userdata'
+    data.mkdir()
+    (data / 'secrets.json').write_text(json.dumps({'secret_key': 'a', 'key_pepper': 'b', 'admin_token': 'c'}))
+    (data / 'database.db').touch()
+    monkeypatch.setenv('AGENTBRIDGE_INSTALL_ROOT', str(root))
+    monkeypatch.setenv('AGENTBRIDGE_BIN_DIR', str(bin_dir))
+    monkeypatch.setattr(cli, 'FROZEN', True)
+    monkeypatch.setattr(cli, 'ROOT', executable_dir)
+    monkeypatch.setattr(cli, 'DATA', data)
+    monkeypatch.setattr(sys, 'executable', str(executable))
+    monkeypatch.setattr(cli, 'stop', lambda: None)
+    return cli, launcher, executable_dir.parent, data
+
+
+def test_uninstall_preserves_data_and_removes_owned_release(tmp_path, monkeypatch):
+    cli, launcher, release, data = prepare_uninstall(tmp_path, monkeypatch)
+    unrelated = release.parent / 'other-files'
+    unrelated.mkdir()
+    calls = []
+    if os.name == 'nt':
+        monkeypatch.setattr(cli.subprocess, 'Popen', lambda *args, **kwargs: calls.append(args))
+    cli.uninstall_cli()
+    if os.name == 'nt':
+        assert calls and launcher.exists()  # The detached helper removes it after exit.
+    else:
+        assert not launcher.exists() and not release.exists()
+    assert (data / 'database.db').exists() and unrelated.exists()
+
+
+def test_uninstall_purge_and_unverified_launcher(tmp_path, monkeypatch):
+    import pytest
+    cli, launcher, release, data = prepare_uninstall(tmp_path, monkeypatch)
+    if os.name == 'nt':
+        commands = []
+        monkeypatch.setattr(cli.subprocess, 'Popen', lambda args, **kwargs: commands.append(args))
+        cli.uninstall_cli(purge=True)
+        import base64
+        script = base64.b64decode(commands[0][-1]).decode('utf-16le')
+        assert str(data) in script and 'Wait-Process' in script
+    else:
+        cli.uninstall_cli(purge=True)
+        assert not data.exists()
+    # An unrelated launcher must never be removed or cause the gateway to stop.
+    if launcher.is_symlink() or launcher.exists():
+        launcher.unlink()
+    launcher.write_text('unrelated')
+    with pytest.raises(RuntimeError, match='verify'):
+        cli.uninstall_cli()
+    assert launcher.read_text() == 'unrelated'
+
+
+def test_uninstall_rejects_unsafe_data_directory(tmp_path, monkeypatch):
+    import pytest
+    cli, launcher, release, _ = prepare_uninstall(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, 'DATA', tmp_path)
+    with pytest.raises(RuntimeError, match='unsafe'):
+        cli.uninstall_cli(purge=True)
+    assert launcher.exists() and release.exists()
+
+
+def test_uninstall_source_launcher_keeps_checkout(tmp_path, monkeypatch):
+    import shlex
+    from app import cli
+    root = tmp_path / 'checkout with spaces'
+    (root / 'backend').mkdir(parents=True)
+    bin_dir = tmp_path / 'bin'
+    bin_dir.mkdir()
+    launcher = bin_dir / ('agentbridge.cmd' if os.name == 'nt' else 'agentbridge')
+    if os.name == 'nt':
+        launcher.write_text(f'@echo off\nset "PYTHONPATH={root / "backend"};%PYTHONPATH%"\n"{Path(sys.executable).resolve()}" -m app.cli %*\n')
+    else:
+        launcher.write_text('#!/bin/sh\nexec ' + shlex.quote(str(root / 'agentbridge')) + ' "$@"\n')
+    monkeypatch.setenv('AGENTBRIDGE_BIN_DIR', str(bin_dir))
+    monkeypatch.setattr(cli, 'FROZEN', False)
+    monkeypatch.setattr(cli, 'ROOT', root)
+    monkeypatch.setattr(cli, 'stop', lambda: None)
+    cli.uninstall_cli()
+    assert not launcher.exists() and root.is_dir()
+
+
+def test_public_help_describes_commands_and_hides_helpers(monkeypatch, capsys):
+    import pytest
+    from app import cli
+    monkeypatch.setattr(sys, 'argv', ['agentbridge', '--help'])
+    with pytest.raises(SystemExit) as result:
+        cli.main()
+    assert result.value.code == 0
+    output = capsys.readouterr().out
+    assert 'agentbridge start --personal' in output
+    assert 'uninstall' in output and 'dashboard' in output
+    assert '_serve' not in output and '_tray' not in output
+
+
+def test_uninstall_help_explains_data_retention(monkeypatch, capsys):
+    import pytest
+    from app import cli
+    monkeypatch.setattr(sys, 'argv', ['agentbridge', 'uninstall', '--help'])
+    with pytest.raises(SystemExit) as result:
+        cli.main()
+    assert result.value.code == 0
+    output = capsys.readouterr().out
+    assert 'User data is kept by default' in output and '--purge' in output

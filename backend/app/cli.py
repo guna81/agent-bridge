@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
 import signal
+import shutil
+import shlex
+import tempfile
 import socket
 import subprocess
 import sys
@@ -250,24 +254,156 @@ def update_cli():
         print("Update installed. Run 'agentbridge start' when ready.")
 
 
+def installation_paths():
+    install_root = Path(os.environ.get("AGENTBRIDGE_INSTALL_ROOT", Path(os.environ.get("LOCALAPPDATA", "")) / "AgentBridge" if os.name == "nt" else Path.home() / ".local/share/agentbridge")).expanduser().resolve()
+    bin_dir = Path(os.environ.get("AGENTBRIDGE_BIN_DIR", install_root / "bin" if os.name == "nt" else Path.home() / ".local/bin")).expanduser().resolve()
+    return install_root, bin_dir / ("agentbridge.cmd" if os.name == "nt" else "agentbridge")
+
+
+def uninstall_cli(purge=False):
+    install_root, launcher = installation_paths()
+    executable = Path(sys.executable).resolve()
+    try:
+        if FROZEN:
+            if os.name == "nt":
+                managed = f'"{executable}" %*'.lower() in launcher.read_text(encoding="utf-8").lower()
+            else:
+                managed = launcher.is_symlink() and launcher.resolve() == executable
+            # Never remove release directories for a manually extracted package.
+            release_dir = executable.parent.parent
+            managed = managed and executable.parent.name == "agentbridge" and release_dir.parent == install_root / "releases" and (release_dir.name.startswith("release.") or release_dir.name.startswith("release-"))
+        elif os.name == "nt":
+            content = launcher.read_text(encoding="utf-8").lower()
+            managed = f'"{executable}" -m app.cli %*'.lower() in content and str(ROOT / "backend").lower() in content
+        else:
+            managed = not launcher.is_symlink() and launcher.read_text() == '#!/bin/sh\nexec ' + shlex.quote(str(ROOT / 'agentbridge')) + ' "$@"\n'
+    except (OSError, UnicodeError):
+        managed = False
+    if not managed:
+        raise RuntimeError("Could not verify an installer-managed launcher for this installation. Set AGENTBRIDGE_INSTALL_ROOT and AGENTBRIDGE_BIN_DIR to the original locations, or remove it manually.")
+
+    if purge and DATA.exists():
+        # A custom AGENTBRIDGE_HOME must contain our credentials, and must not
+        # encompass a home, checkout, launcher, or installation directory.
+        protected = [Path.home().resolve(), ROOT.resolve(), install_root, launcher.parent]
+        if any(path == DATA or path.is_relative_to(DATA) for path in protected):
+            raise RuntimeError("Refusing to remove an unsafe AgentBridge data directory.")
+        try:
+            values = json.loads((DATA / "secrets.json").read_text())
+            if not all(isinstance(values.get(k), str) and values[k] for k in ("secret_key", "key_pepper", "admin_token")):
+                raise ValueError("invalid credentials")
+        except (OSError, ValueError, TypeError, AttributeError) as exc:
+            raise RuntimeError("Cannot verify the AgentBridge data directory; remove it manually if appropriate.") from exc
+
+    release_dirs = []
+    releases = install_root / "releases"
+    if FROZEN and releases.is_dir() and not releases.is_symlink():
+        binary_name = "agentbridge.exe" if os.name == "nt" else "agentbridge"
+        release_dirs = [path for path in releases.iterdir() if not path.is_symlink() and path.is_dir()
+                        and (path.name.startswith("release.") or path.name.startswith("release-"))
+                        and (path / "agentbridge" / binary_name).is_file()]
+    stop()
+    if os.name == "nt" and FROZEN:
+        # Windows cannot delete the executable while this process is running.
+        # A detached PowerShell process waits for it to exit before removing files.
+        def ps_quote(path):
+            return "'" + str(path).replace("'", "''") + "'"
+        log = Path(tempfile.gettempdir()) / f"agentbridge-uninstall-{os.getpid()}.log"
+        paths = [launcher, *release_dirs, *([DATA] if purge and DATA.exists() else [])]
+        path_array = ",".join(ps_quote(path) for path in paths)
+        script = (f"$ErrorActionPreference='Stop'; try {{ Wait-Process -Id {os.getpid()} -ErrorAction SilentlyContinue; "
+                  f"foreach ($p in @({path_array})) {{ for ($i=0; $i -lt 15; $i++) {{ "
+                  f"if (-not (Test-Path -LiteralPath $p)) {{ break }}; "
+                  f"try {{ Remove-Item -LiteralPath $p -Force -Recurse; break }} catch {{ if ($i -eq 14) {{ throw }}; Start-Sleep -Seconds 1 }} }} }}; "
+                  f"'Uninstall complete' | Set-Content -LiteralPath {ps_quote(log)} }} "
+                  f"catch {{ $_ | Out-String | Set-Content -LiteralPath {ps_quote(log)}; exit 1 }}")
+        encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+        subprocess.Popen(["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+                         cwd=tempfile.gettempdir(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, **background_options())
+        print(f"Uninstall scheduled after this command exits. Check {log} for the result.")
+    else:
+        launcher.unlink()
+        for path in release_dirs:
+            shutil.rmtree(path)
+        if purge and DATA.exists():
+            shutil.rmtree(DATA)
+        print("AgentBridge uninstalled.")
+    if not purge:
+        print(f"User data retained at {DATA}. Use --purge during uninstall to remove it.")
+    if not FROZEN:
+        print(f"Source checkout retained at {ROOT}.")
+
+
 def main():
-    parser = argparse.ArgumentParser(prog="agentbridge", description="Run the local AgentBridge gateway and status bar")
+    parser = argparse.ArgumentParser(
+        prog="agentbridge",
+        description="Run a local AI gateway and monitor subscription usage in your menu bar or system tray.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Quick start:
+  agentbridge start --personal   Start with your own CLI logins
+  agentbridge dashboard          Open the signed-in dashboard
+  agentbridge status             Check whether the gateway is running
+
+Use 'agentbridge COMMAND --help' for details and examples.
+Data and credentials are stored in ~/.agentbridge (override with AGENTBRIDGE_HOME).
+Documentation: https://github.com/guna81/agent-bridge#readme""",
+    )
     from app.updates import VERSION, check_update
     parser.add_argument("--version", action="version", version=f"AgentBridge {VERSION}")
-    sub = parser.add_subparsers(dest="command", required=True)
-    start_parser = sub.add_parser("start", help="start the gateway and system tray")
-    start_parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"gateway port (default: {DEFAULT_PORT})")
+    sub = parser.add_subparsers(dest="command", required=True, title="commands",
+                                metavar="{start,stop,status,dashboard,update,uninstall}")
+    start_parser = sub.add_parser("start", help="start the gateway and status indicator",
+        description="Start the local gateway and menu bar or system tray indicator in the background.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  agentbridge start --personal
+  agentbridge start --api-key-mode
+  agentbridge start --port 43188 --no-tray
+
+If no authentication mode is specified, the last saved mode is used.
+The gateway listens on 127.0.0.1. Install and sign in to provider CLIs separately.""")
+    start_parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"local gateway port (default: {DEFAULT_PORT})")
     mode = start_parser.add_mutually_exclusive_group()
-    mode.add_argument("--personal", dest="personal", action="store_true", default=None, help="allow reuse of your own CLI logins for personal use")
-    mode.add_argument("--api-key-mode", dest="personal", action="store_false", help="disable personal CLI login reuse")
-    start_parser.add_argument("--no-tray", action="store_true")
-    for name in ("stop", "status", "_serve", "_tray"):
-        sub.add_parser(name)
-    sub.add_parser("update", help="install the latest stable release")
-    dashboard_parser = sub.add_parser("dashboard", help="open the signed-in dashboard")
+    mode.add_argument("--personal", dest="personal", action="store_true", default=None, help="reuse your own CLI logins for personal use; enable newly created providers")
+    mode.add_argument("--api-key-mode", dest="personal", action="store_false", help="disable reuse of local CLI logins")
+    start_parser.add_argument("--no-tray", action="store_true", help="start the gateway without a menu bar or tray indicator")
+    sub.add_parser("stop", help="stop the managed gateway and indicator",
+                   description="Stop the gateway and status indicator started by this CLI. User data is retained.")
+    sub.add_parser("status", help="show the gateway's health and address",
+                   description="Show whether the managed gateway is running, its health, address, and process ID.")
+    sub.add_parser("update", help="install the latest stable release",
+        description="Check for and install a newer stable release for an installer-managed package.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""A running gateway keeps using the old version until restarted:
+  agentbridge stop
+  agentbridge start
+
+Source checkouts are updated with Git and rebuilt instead.""")
+    uninstall_parser = sub.add_parser("uninstall", help="remove the installed CLI and stop its gateway",
+        description="Stop the managed gateway and remove the verified launcher and installed release files.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""User data is kept by default. A source checkout and launcher backups are retained.
+On Windows, packaged removal completes after this command exits; check the printed log.
+
+Examples:
+  agentbridge uninstall           Keep settings, credentials, and database
+  agentbridge uninstall --purge   Delete those user data files as well""")
+    uninstall_parser.add_argument("--purge", action="store_true", help="also delete AgentBridge settings, credentials, and database")
+    dashboard_parser = sub.add_parser("dashboard", help="open the signed-in dashboard",
+        description="Open the dashboard in your browser and sign in using the local admin token. Start the gateway first.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  agentbridge dashboard
+  agentbridge dashboard --show-token
+
+Treat the admin token as a secret. --show-token prints it for manual sign-in.""")
     dashboard_parser.add_argument("--show-token", action="store_true", help="print the admin token for manual sign-in")
+    # Internal subprocess commands remain callable but are omitted from public help.
+    sub.add_parser("_serve")
+    sub.add_parser("_tray")
     args = parser.parse_args()
-    if args.command not in ("_serve", "_tray", "update"):
+    if args.command not in ("_serve", "_tray", "update", "uninstall"):
         update = check_update(DATA)
         if update["available"]:
             print(f"Update available: AgentBridge {update['current']} → {update['latest']}. "
@@ -287,6 +423,8 @@ def main():
                 print("AgentBridge is not running under this CLI.")
         elif args.command == "update":
             update_cli()
+        elif args.command == "uninstall":
+            uninstall_cli(purge=args.purge)
         elif args.command == "dashboard":
             info = state()
             if not info:
