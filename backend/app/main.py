@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -30,7 +31,9 @@ def seed_providers() -> None:
     with session_scope() as s:
         for name, d in BUILTIN_PROVIDERS.items():
             if s.scalar(select(Provider).where(Provider.name == name)) is None:
-                s.add(Provider(name=name, kind=name, enabled=False, mode="raw", auth_mode="api_key",
+                personal = os.environ.get("AGENTBRIDGE_SEED_PERSONAL") == "true"
+                s.add(Provider(name=name, kind=name, enabled=personal, mode="raw",
+                               auth_mode="oauth_cli" if personal else "api_key", use_host_home=personal,
                                raw_system_prompt=DEFAULT_RAW_PROMPT, extra={}, **d))  # fmt: skip
 
 
@@ -71,7 +74,7 @@ def create_app() -> FastAPI:
         log("startup", host=s.host, port=s.port, db=s.db_url.split(":")[0], queue=s.queue_backend)
         yield
 
-    app = FastAPI(title="LLM CLI Gateway", lifespan=lifespan, docs_url="/docs", redoc_url=None)
+    app = FastAPI(title="AgentBridge", lifespan=lifespan, docs_url="/docs", redoc_url=None)
 
     @app.exception_handler(ProxyError)
     async def _proxy_error(_: Request, e: ProxyError):

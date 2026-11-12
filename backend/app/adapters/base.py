@@ -60,7 +60,8 @@ class NormalizedRequest:
     stream: bool = False
     max_tokens: int | None = None
     temperature: float | None = None
-    images: list[Image] = field(default_factory=list)  # all request images, in order; sent with the final user turn
+    images: list[Image] = field(default_factory=list)
+    images_by_turn: dict[int, list[Image]] = field(default_factory=dict)  # indices into turns
 
     @property
     def prompt(self) -> str:

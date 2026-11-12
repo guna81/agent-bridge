@@ -10,12 +10,12 @@ import httpx
 from . import ledger, metrics
 from .adapters.base import Done, Error, Event, NormalizedRequest, RunContext, TextDelta, ToolEvent, Usage
 from .adapters.registry import new_adapter
-from .backends.direct import stream_direct
+from .backends.direct import ANTHROPIC_MODELS, stream_direct
 from .config import get_settings
 from .errors import ProxyError
 from .logging_setup import log
 from .models import Provider
-from .pricing import estimate_cost, estimate_tokens
+from .pricing import estimate_cost, estimate_tokens, pricing_rate
 from .runner.env import build_env, host_home
 from .runner.process import RunResult, RunTimeout, stream_lines
 from .runner.queue import JobQueue, QueueTimeout
@@ -49,14 +49,14 @@ async def run_chat(
                               + (" through its CLI; switch it to the direct API backend." if provider.kind in DIRECT_KINDS else "."),
                          "invalid_request_error", "unsupported_content")  # fmt: skip
 
+    if req.images_by_turn and provider.backend == "cli":
+        last_user = next((i for i in range(len(req.turns) - 1, -1, -1) if req.turns[i][0] == "user"), -1)
+        if any(i != last_user for i in req.images_by_turn):
+            raise ProxyError(400, "Earlier-turn images require a direct API backend.", "invalid_request_error", "unsupported_content")
+
     budget = provider.max_budget_usd or s.default_max_budget_usd
-    if user_id is not None:
-        bal = ledger.balance(user_id)
-        if bal <= 0:
-            raise ProxyError(429, "You have no remaining credits.", "insufficient_quota", "insufficient_quota")
-        budget = max(0.001, min(budget, bal))
     if budget_cap is not None:
-        budget = max(0.001, min(budget, budget_cap))
+        budget = min(budget, budget_cap)
 
     api_key = decrypt_secret(provider.api_key_enc) if provider.api_key_enc else None
     model_label = f"{provider.name}/{req.model}"
@@ -64,9 +64,12 @@ async def run_chat(
     text_parts: list[str] = []
     usage: Usage | None = None
     status = "aborted"
+    error_code: str | None = None
     try:
         try:
             async with state.queue.slot(user_id or 0):
+                if user_id is not None:
+                    budget = ledger.reserve(user_id, key_id, request_id, budget)
                 events = (
                     stream_direct(provider.kind, req, api_key=api_key or "", system_default=provider.raw_system_prompt,
                                   extra=provider.extra or {}, timeout=s.request_timeout_s, transport=state.direct_transport)
@@ -83,6 +86,7 @@ async def run_chat(
                             usage = ev
                         elif isinstance(ev, Error):
                             status = "error"
+                            error_code = ev.code
                             yield ev
                             return
                         if isinstance(ev, Done):
@@ -92,18 +96,31 @@ async def run_chat(
                     await events.aclose()
         except QueueTimeout as e:
             raise ProxyError(503, str(e), "server_error", "server_busy", {"Retry-After": "5"}) from None
+    except ProxyError as e:
+        status = "error"
+        error_code = e.code
+        raise
     finally:
         text = "".join(text_parts)
+        extra = provider.extra or {}
+        pricing_model = req.model
+        if provider.backend == "direct":
+            pricing_model = (extra.get("direct_model_map") or {}).get(req.model) or (ANTHROPIC_MODELS.get(req.model, req.model) if provider.kind == "claude" else req.model.removesuffix("-high").removesuffix("-medium").removesuffix("-low"))
+        rates = extra.get("pricing_rates") if isinstance(extra.get("pricing_rates"), dict) else {}
         if usage and (usage.input_tokens or usage.output_tokens):
             in_tok, out_tok = usage.input_tokens, usage.output_tokens
-            cost = usage.cost_usd if usage.cost_usd is not None else estimate_cost(req.model, in_tok, out_tok)
+            cost = usage.cost_usd if usage.cost_usd is not None else estimate_cost(pricing_model, in_tok, out_tok, rates)
             estimated = usage.cost_usd is None
         else:
             in_tok, out_tok = estimate_tokens(req.system + req.prompt), estimate_tokens(text)
-            cost = estimate_cost(req.model, in_tok, out_tok) if (text and status != "error") else 0.0
+            cost = estimate_cost(pricing_model, in_tok, out_tok, rates) if (text and status != "error") else 0.0
             estimated = True
         ledger.record(user_id=user_id, key_id=key_id, request_id=request_id, provider=provider.name, model=req.model,
-                      input_tokens=in_tok, output_tokens=out_tok, cost_usd=cost, estimated=estimated, status=status)  # fmt: skip
+                      input_tokens=in_tok, output_tokens=out_tok, cost_usd=cost, estimated=estimated, status=status,
+                      duration_ms=int((time.monotonic() - t0) * 1000), error_code=error_code,
+                      pricing_model=pricing_model if estimated else None,
+                      input_rate=pricing_rate(pricing_model, rates)[0] if estimated else None,
+                      output_rate=pricing_rate(pricing_model, rates)[1] if estimated else None)  # fmt: skip
         metrics.observe_request(provider.name, req.model, status, in_tok, out_tok, cost, time.monotonic() - t0)
         log("chat.finished", request_id=request_id, user_id=user_id, model=model_label, status=status,
             input_tokens=in_tok, output_tokens=out_tok, cost_usd=round(cost, 6), estimated=estimated,

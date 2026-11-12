@@ -22,3 +22,4 @@ frontend/dist/
 menubar/LLMGatewayBar
 menubar/LLMGatewayBar.app/
 .DS_Store
+build/

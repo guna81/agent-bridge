@@ -47,7 +47,7 @@ function GaugeBar({
       <div className="gauge-track">
         <div
           className={`gauge-fill ${toneClass}`}
-          style={{ width: `${Math.max(2, Math.min(100, displayPercent))}%` }}
+          style={{ width: `${Math.max(0, Math.min(100, displayPercent))}%` }}
         />
       </div>
       <div className="gauge-footer">
@@ -70,30 +70,29 @@ export default function CliRateLimitsCard({ rateLimits, onOpenConfig, loading }:
   const claude = rateLimits?.claude;
 
   const hasAny = !!(agy || codex || claude);
+  const agyAvailable = !!(agy?.five_hour || agy?.weekly || agy?.claude_gpt_5h || agy?.claude_gpt_weekly);
 
   return (
     <section className="card cli-limits-card">
       <div className="card-head">
         <div>
           <div className="title-with-pill">
-            <h2>CLI Agent Subscription Limits</h2>
-            <span className="live-indicator-pill" title="Auto-refreshing rate limits">
-              <span className="live-dot" /> LIVE
-            </span>
+            <h2>Subscription usage</h2>
+
           </div>
           <p className="muted small">5-hour session & weekly rate limits across your active coding agents.</p>
         </div>
         <div className="head-actions">
           <button className="ghost small-btn" onClick={onOpenConfig}>
-            ⚙ Configuration
+            Indicator settings
           </button>
         </div>
       </div>
 
-      {!hasAny && !loading ? (
+      {loading ? <p className="muted">Loading subscription usage…</p> : !hasAny ? (
         <div className="empty-limits muted">
           No CLI rate limits detected yet. Make sure Codex, Claude Code, or Antigravity has been used on this machine, or check{" "}
-          <button className="link" onClick={onOpenConfig}>Configuration</button>.
+          <button className="link" onClick={onOpenConfig}>indicator settings</button>.
         </div>
       ) : (
         <div className="cli-agents-grid">
@@ -103,12 +102,12 @@ export default function CliRateLimitsCard({ rateLimits, onOpenConfig, loading }:
               <div className="box-header">
                 <div className="provider-info">
                   <span className="agent-badge agy-badge">Antigravity</span>
-                  <span className="provider-sub">{agy.plan_name || "Google AI Pro"}</span>
+                  <span className="provider-sub">{agy.plan_name || "Subscription Limits"}</span>
                 </div>
-                <span className="status-tag ok">Active</span>
+                <span className={`status-tag ${agyAvailable ? "ok" : ""}`}>{agyAvailable ? "Available" : "Unavailable"}</span>
               </div>
               <div className="gauges-list">
-                <GaugeBar
+                {agy.five_hour ? <GaugeBar
                   label="Gemini 5h Limit"
                   leftPercent={agy.five_hour.left_percent}
                   usedPercent={agy.five_hour.used_percent}
@@ -116,8 +115,8 @@ export default function CliRateLimitsCard({ rateLimits, onOpenConfig, loading }:
                   mode="left"
                   exhausted={agy.five_hour.is_exhausted}
                   description={agy.five_hour.description}
-                />
-                <GaugeBar
+                /> : <span className="muted xsmall">Gemini 5h Limit: unavailable</span>}
+                {agy.weekly ? <GaugeBar
                   label="Gemini Weekly Limit"
                   leftPercent={agy.weekly.left_percent}
                   usedPercent={agy.weekly.used_percent}
@@ -125,10 +124,12 @@ export default function CliRateLimitsCard({ rateLimits, onOpenConfig, loading }:
                   mode="left"
                   exhausted={agy.weekly.is_exhausted}
                   description={agy.weekly.description}
-                />
+                /> : <span className="muted xsmall">Gemini Weekly Limit: unavailable</span>}
+                {agy.updated_at && <span className="muted xsmall">Last reported: {new Date(agy.updated_at * 1000).toLocaleString()}</span>}
+                {!agyAvailable && <span className="muted xsmall">Waiting for Antigravity usage. Check that agy is installed and signed in.</span>}
                 {agy.claude_gpt_5h && (
                   <div className="mini-sub-limit muted xsmall">
-                    Claude & GPT: {agy.claude_gpt_5h.left_percent}% left 5h · {agy.claude_gpt_weekly?.left_percent ?? 100}% left week
+                    Claude & GPT: {agy.claude_gpt_5h.left_percent}% left 5h · {agy.claude_gpt_weekly ? `${agy.claude_gpt_weekly.left_percent}% left week` : "weekly unavailable"}
                   </div>
                 )}
               </div>
@@ -143,27 +144,28 @@ export default function CliRateLimitsCard({ rateLimits, onOpenConfig, loading }:
                   <span className="agent-badge codex-badge">OpenAI Codex</span>
                   <span className="provider-sub">Subscription Limits</span>
                 </div>
-                <span className={`status-tag ${codex.five_hour.is_exhausted ? "exhausted" : "ok"}`}>
-                  {codex.five_hour.is_exhausted ? "5h Exhausted" : "Active"}
+                <span className={`status-tag ${codex.five_hour?.is_exhausted || codex.weekly?.is_exhausted ? "exhausted" : codex.five_hour || codex.weekly ? "ok" : ""}`}>
+                  {codex.five_hour?.is_exhausted || codex.weekly?.is_exhausted ? "Exhausted" : codex.five_hour || codex.weekly ? "Available" : "Unavailable"}
                 </span>
               </div>
               <div className="gauges-list">
-                <GaugeBar
+                {codex.five_hour && <GaugeBar
                   label="5h Limit"
                   leftPercent={codex.five_hour.left_percent}
                   usedPercent={codex.five_hour.used_percent}
                   resetStr={codex.five_hour.reset_str}
                   mode="left"
                   exhausted={codex.five_hour.is_exhausted}
-                />
-                <GaugeBar
+                />}
+                {codex.weekly && <GaugeBar
                   label="Weekly Limit"
                   leftPercent={codex.weekly.left_percent}
                   usedPercent={codex.weekly.used_percent}
                   resetStr={codex.weekly.reset_str}
                   mode="left"
                   exhausted={codex.weekly.is_exhausted}
-                />
+                />}
+                <span className="muted xsmall">Last reported by Codex{codex.updated_at ? `: ${new Date(typeof codex.updated_at === "number" ? codex.updated_at * 1000 : codex.updated_at).toLocaleString()}` : ""}. Missing windows have not been reported.</span>
               </div>
             </div>
           )}
@@ -176,32 +178,32 @@ export default function CliRateLimitsCard({ rateLimits, onOpenConfig, loading }:
                   <span className="agent-badge claude-badge">Claude Code</span>
                   <span className="provider-sub">Utilization</span>
                 </div>
-                <span className="status-tag ok">Active</span>
+                <span className={`status-tag ${claude.five_hour || claude.weekly || claude.weekly_scoped ? "ok" : ""}`}>{claude.five_hour || claude.weekly || claude.weekly_scoped ? "Available" : "Unavailable"}</span>
               </div>
               <div className="gauges-list">
-                <GaugeBar
+                {claude.five_hour ? <GaugeBar
                   label="Current Session"
                   leftPercent={claude.five_hour.left_percent}
                   usedPercent={claude.five_hour.used_percent}
                   resetStr={claude.five_hour.reset_str}
-                  mode="used"
+                  mode="left"
                   exhausted={claude.five_hour.is_exhausted}
-                />
-                <GaugeBar
+                /> : <span className="muted xsmall">Current Session: unavailable</span>}
+                {claude.weekly ? <GaugeBar
                   label="Current Week (all models)"
                   leftPercent={claude.weekly.left_percent}
                   usedPercent={claude.weekly.used_percent}
                   resetStr={claude.weekly.reset_str}
-                  mode="used"
+                  mode="left"
                   exhausted={claude.weekly.is_exhausted}
-                />
+                /> : <span className="muted xsmall">Current Week (all models): unavailable</span>}
                 {claude.weekly_scoped && (
                   <GaugeBar
                     label={`Current Week (${claude.weekly_scoped.model_name})`}
                     leftPercent={claude.weekly_scoped.left_percent}
                     usedPercent={claude.weekly_scoped.used_percent}
                     resetStr={claude.weekly_scoped.reset_str}
-                    mode="used"
+                    mode="left"
                     exhausted={claude.weekly_scoped.is_exhausted}
                   />
                 )}

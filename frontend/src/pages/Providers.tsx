@@ -31,7 +31,7 @@ export default function Providers({ settings }: { settings: AdminSettings }) {
       <div className="page-head">
         <div>
           <h1>Providers</h1>
-          <p className="muted">Each provider is a CLI (or a direct API) that requests are routed to as <code>provider/model</code>.</p>
+          <p className="muted">Configure where API gateway requests are routed as <code>provider/model</code>. Subscription usage tracking is configured separately.</p>
         </div>
         <button className="primary" onClick={() => setAdding(true)}>
           Add custom CLI
@@ -73,8 +73,11 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
   const [d, setD] = useState<Provider>(p);
   const [modelsText, setModelsText] = useState(p.models.join(", "));
   const [extraText, setExtraText] = useState(JSON.stringify(p.extra ?? {}, null, 2));
+  const [pricingText, setPricingText] = useState(() => Object.entries((p.extra?.pricing_rates as Record<string, number[]>) ?? {}).map(([model, rates]) => `${model}, ${rates[0]}, ${rates[1]}`).join("\n"));
+  const [fallbackModel, setFallbackModel] = useState(String(p.extra?.fallback_model ?? ""));
   const [apiKey, setApiKey] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
+  const [statusError, setStatusError] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [test, setTest] = useState<TestResult | null>(null);
   const [testPrompt, setTestPrompt] = useState("Say hello in five words.");
@@ -83,17 +86,20 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
   const [removing, setRemoving] = useState(false);
   const [userId, setUserId] = useState(0);
 
-  useEffect(() => setD(p), [p]);
   const set = <K extends keyof Provider>(k: K, v: Provider[K]) => setD((x) => ({ ...x, [k]: v }));
   const oauthOk = settings.single_user_personal_use;
   const isCli = d.backend === "cli";
+  const configuredRateIds = new Set(pricingText.split("\n").map((line) => line.split(",")[0].trim()).filter(Boolean));
+  const unconfigured = modelsText.split(",").map((x) => x.trim()).filter((x) => x && !configuredRateIds.has(x));
 
   const refresh = useCallback(async () => {
     setBusy((b) => b || "status");
     try {
       setStatus(await admin<Status>("GET", `/providers/${p.name}/status?user_id=${userId}`));
+      setStatusError("");
     } catch (e) {
-      setStatus({ installed: false, version: null, authenticated: null, detail: (e as Error).message });
+      setStatusError((e as Error).message);
+      setStatus(null);
     } finally {
       setBusy((b) => (b === "status" ? "" : b));
     }
@@ -105,6 +111,19 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
     try {
       const models = modelsText.split(",").map((s) => s.trim()).filter(Boolean);
       const extra = JSON.parse(extraText || "{}");
+      if (!extra || typeof extra !== "object" || Array.isArray(extra)) throw new Error("Extra config must be a JSON object.");
+      const rates: Record<string, number[]> = {};
+      for (const line of pricingText.split("\n")) {
+        if (!line.trim()) continue;
+        const parts = line.split(",").map((v) => v.trim());
+        if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2] || parts.slice(1).some((v) => !Number.isFinite(Number(v)) || Number(v) < 0)) throw new Error("Each pricing line must be model, input rate, output rate, with non-negative numbers.");
+        if (Object.prototype.hasOwnProperty.call(rates, parts[0])) throw new Error(`Duplicate pricing model: ${parts[0]}`);
+        rates[parts[0]] = [Number(parts[1]), Number(parts[2])];
+      }
+      if (fallbackModel.trim()) extra.fallback_model = fallbackModel.trim();
+      else delete extra.fallback_model;
+      if (Object.keys(rates).length) extra.pricing_rates = rates;
+      else delete extra.pricing_rates;
       const v = { ...d, ...patch };
       await admin("PUT", `/providers/${p.name}`, {
         enabled: v.enabled, backend: v.backend, binary_path: v.binary_path, default_model: v.default_model, models, mode: v.mode,
@@ -139,6 +158,17 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
     }
   }
 
+  async function setEnabled(enabled: boolean) {
+    setBusy("save");
+    try {
+      await admin("PUT", `/providers/${p.name}`, { enabled });
+      onChanged();
+    } catch (e) {
+      setD((current) => ({ ...current, enabled: p.enabled }));
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally { setBusy(""); }
+  }
+
   const ready = status?.installed && status.authenticated;
   return (
     <section className={`card provider ${d.enabled ? "" : "off"}`}>
@@ -154,7 +184,9 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
           </span>
         </button>
         <div className="row nowrap">
-          {!status ? (
+          {statusError ? (
+            <Pill tone="warn" title={statusError}>unable to check</Pill>
+          ) : !status ? (
             <Pill>checking…</Pill>
           ) : !status.installed ? (
             <Pill tone="bad" title={status.detail}>not installed</Pill>
@@ -169,10 +201,11 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
             <input
               type="checkbox"
               checked={d.enabled}
+              disabled={busy === "save"}
               aria-label={`${p.name} enabled`}
               onChange={(e) => {
                 set("enabled", e.target.checked);
-                void save({ enabled: e.target.checked });
+                void setEnabled(e.target.checked);
               }}
             />
             <span />
@@ -243,7 +276,7 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
             <Field label="Default model">
               <input value={d.default_model} onChange={(e) => set("default_model", e.target.value)} />
             </Field>
-            <Field label="Max spend per request (USD)" hint="Blank uses the server default.">
+            <Field label="Request budget (USD)" hint="Blank uses the server default. Only the Claude CLI receives a spend limit; other backends may exceed it.">
               <input type="number" step="0.01" min="0" value={d.max_budget_usd ?? ""} placeholder="server default" onChange={(e) => set("max_budget_usd", e.target.value ? Number(e.target.value) : null)} />
             </Field>
           </div>
@@ -278,13 +311,19 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
             </div>
           )}
 
+          <Field label="Fallback model (optional)" hint="Used only when this provider is disabled, its CLI is missing, or its direct API key is absent before a request starts. Both models must be allowed for the key. No request is retried after starting."><input value={fallbackModel} onChange={(e) => setFallbackModel(e.target.value)} placeholder="provider/model" /></Field>
+          <h3>Pricing overrides</h3>
+          <Field label="Rates by resolved model" hint="One line per model: model ID, input USD per million tokens, output USD per million tokens. Unknown models use an approximate fallback price; configure aliases explicitly. Claude-reported costs take precedence. Save changes to apply.">
+            <textarea className="mono" value={pricingText} onChange={(e) => setPricingText(e.target.value)} placeholder={"example-model, 3, 15"} />
+          </Field>
+          {unconfigured.length > 0 && <p className="muted small">Models without an exact configured rate: {unconfigured.join(", ")}. Direct model mappings may use a different resolved ID; check the usage explorer for the rate actually applied.</p>}
           <details className="advanced">
             <summary>Advanced settings (JSON)</summary>
             <textarea className="mono" value={extraText} onChange={(e) => setExtraText(e.target.value)} spellCheck={false} />
             <p className="muted small">
               Agent mode: <code>workdir</code> (run in a fixed project folder instead of a temp folder), <code>extra_args</code> (extra CLI flags, e.g.{" "}
               <code>["--agent", "reviewer"]</code>). Custom CLI: <code>args_template</code>, <code>output_format</code>, <code>json_path</code>, <code>stdin</code>,{" "}
-              <code>use_pty</code>, <code>login_argv</code>. Direct API: <code>base_url</code>, <code>direct_model_map</code>.
+              <code>use_pty</code>, <code>login_argv</code>. Direct API: <code>base_url</code>, <code>direct_model_map</code>. Pricing rates are edited above and override the JSON field.
             </p>
           </details>
 

@@ -35,6 +35,22 @@ def kill_group(pid: int, sig: int = signal.SIGTERM) -> None:
 
 
 async def _terminate(proc: asyncio.subprocess.Process) -> None:
+    if os.name == "nt":
+        import psutil
+        try:
+            parent = psutil.Process(proc.pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.kill()
+                except psutil.Error:
+                    pass
+            parent.kill()
+        except psutil.Error:
+            pass
+        if proc.returncode is None:
+            await proc.wait()
+        return
     if proc.returncode is not None:
         # leader exited but children may linger in the group
         kill_group(proc.pid, signal.SIGKILL)
@@ -65,7 +81,7 @@ async def stream_lines(
         stderr=asyncio.subprocess.PIPE,
         cwd=str(cmd.cwd) if cmd.cwd else None,
         env=env,
-        start_new_session=True,  # own process group => killpg reaches grandchildren
+        start_new_session=os.name != "nt",  # own process group on Unix
         limit=16 * 1024 * 1024,
     )
     tasks: list[asyncio.Task] = []

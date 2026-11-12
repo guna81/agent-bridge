@@ -53,6 +53,10 @@ export interface KeyRow {
   last_used_at: string | null;
   budget_usd: number | null;
   spent_usd: number;
+  daily_budget_usd: number | null;
+  monthly_budget_usd: number | null;
+  daily_spent_usd: number;
+  monthly_spent_usd: number;
   expires_at: string | null;
   allowed_models: string[];
 }
@@ -69,6 +73,11 @@ export interface LedgerRow {
   cost_usd: number;
   estimated: boolean;
   status: string;
+  duration_ms: number | null;
+  error_code: string | null;
+  pricing_model: string | null;
+  input_rate: number | null;
+  output_rate: number | null;
   created_at: string;
 }
 
@@ -92,19 +101,19 @@ export interface LimitWindow {
 }
 
 export interface AntigravityRateLimits {
-  five_hour: LimitWindow;
-  weekly: LimitWindow;
-  claude_gpt_5h?: LimitWindow;
-  claude_gpt_weekly?: LimitWindow;
-  plan_name: string;
-  tier_id: string;
+  five_hour: LimitWindow | null;
+  weekly: LimitWindow | null;
+  claude_gpt_5h?: LimitWindow | null;
+  claude_gpt_weekly?: LimitWindow | null;
+  plan_name: string | null;
+  tier_id: string | null;
   updated_at?: number | null;
 }
 
 export interface CodexRateLimits {
-  five_hour: LimitWindow;
-  weekly: LimitWindow;
-  updated_at?: number | null;
+  five_hour: LimitWindow | null;
+  weekly: LimitWindow | null;
+  updated_at?: number | string | null;
 }
 
 export interface ClaudeScopedLimit {
@@ -117,8 +126,8 @@ export interface ClaudeScopedLimit {
 }
 
 export interface ClaudeRateLimits {
-  five_hour: LimitWindow;
-  weekly: LimitWindow;
+  five_hour: LimitWindow | null;
+  weekly: LimitWindow | null;
   weekly_scoped: ClaudeScopedLimit | null;
 }
 
@@ -135,6 +144,8 @@ export interface StatusBarConfig {
     antigravity: boolean;
   };
   pinned_metric: string;
+  selected_clis: string[];
+  display_mode: "bars" | "compact";
   refresh_interval_seconds: number;
   antigravity_ls_address: string;
   antigravity_csrf_token: string;
@@ -235,6 +246,8 @@ export interface ChatMessage {
 export interface StreamStats {
   prompt_tokens: number;
   completion_tokens: number;
+  model?: string;
+  ignored?: string;
 }
 
 /** Streams /v1/chat/completions (SSE) and calls onDelta for every content chunk. Resolves with token usage if sent. */
@@ -259,6 +272,8 @@ export async function streamChat(
   const dec = new TextDecoder();
   let buf = "";
   let stats: StreamStats | null = null;
+  const selectedModel = r.headers.get("X-Proxy-Model") || model;
+  const ignored = r.headers.get("X-Proxy-Ignored-Params") || "";
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -269,7 +284,7 @@ export async function streamChat(
       buf = buf.slice(i + 2);
       if (!line.startsWith("data:")) continue;
       const payload = line.slice(5).trim();
-      if (payload === "[DONE]") return stats;
+      if (payload === "[DONE]") return { ...(stats ?? { prompt_tokens: 0, completion_tokens: 0 }), model: selectedModel, ignored };
       const obj = JSON.parse(payload);
       if (obj.error) throw new ApiError(500, obj.error.message);
       if (obj.usage) stats = obj.usage;
@@ -277,5 +292,5 @@ export async function streamChat(
       if (c) onDelta(c);
     }
   }
-  return stats;
+  return { ...(stats ?? { prompt_tokens: 0, completion_tokens: 0 }), model: selectedModel, ignored };
 }

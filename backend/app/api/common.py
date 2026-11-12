@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from .. import ledger, metrics
 from ..adapters.base import Done, Error, Image, TextDelta, Usage
+from ..adapters.base import resolve_binary
 from ..config import get_settings
 from ..db import session_scope
 from ..errors import ProxyError, not_found_model
@@ -57,6 +58,34 @@ def model_allowed(key: ApiKey, model: str) -> bool:
     """allowed_models is a list of exact ids or glob patterns (`claude/*`). Empty/None = everything."""
     pats = key.allowed_models or []
     return not pats or any(fnmatch.fnmatchcase(model, p) for p in pats)
+
+
+def resolve_routed_provider(key: ApiKey, model: str) -> tuple[Provider, str, str]:
+    """Use an explicit fallback only when the primary is unavailable before execution.
+
+    Never retry after a subprocess or upstream request has started, since it may
+    have incurred a charge. Both the requested and selected models must be allowed.
+    """
+    if not model_allowed(key, model):
+        raise ProxyError(403, f"This API key is not allowed to use the model `{model}`.", "permission_error", "model_not_allowed")
+    if "/" not in model:
+        raise not_found_model(model)
+    name, slug = model.split("/", 1)
+    with session_scope() as s:
+        primary = s.scalar(select(Provider).where(Provider.name == name))
+        if primary is None or (slug not in (primary.models or []) and slug != primary.default_model):
+            raise not_found_model(model)
+        s.expunge(primary)
+    unavailable = not primary.enabled or (primary.backend == "cli" and not resolve_binary(primary.binary_path or primary.kind)) or (
+        primary.backend == "direct" and not primary.api_key_enc)
+    fallback = (primary.extra or {}).get("fallback_model")
+    if unavailable and isinstance(fallback, str) and fallback and fallback != model:
+        if not model_allowed(key, fallback):
+            raise ProxyError(403, f"This API key is not allowed to use the fallback model `{fallback}`.", "permission_error", "model_not_allowed")
+        selected, selected_slug = resolve_provider(fallback)
+        return selected, selected_slug, fallback
+    selected, selected_slug = resolve_provider(model)
+    return selected, selected_slug, model
 
 
 def check_key_limits(key: ApiKey, model: str) -> float | None:

@@ -17,7 +17,7 @@ from ..adapters.registry import ADAPTERS, new_adapter
 from ..config import get_settings
 from ..db import session_scope
 from ..errors import ProxyError
-from ..models import ApiKey, Provider, User, iso_utc
+from ..models import ApiKey, Provider, Reservation, User, iso_utc
 from ..runner.env import host_home
 from ..runner.workdir import fresh_workdir, user_home
 from ..security import encrypt_secret, generate_proxy_key, hash_proxy_key, key_display_prefix
@@ -25,6 +25,21 @@ from ..service import run_chat
 from .deps import require_admin
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
+
+
+@router.get("/reservations")
+async def list_reservations():
+    with session_scope() as s:
+        return [{"request_id": r.request_id, "user_id": r.user_id, "key_id": r.key_id,
+                 "amount_usd": r.amount_usd, "created_at": iso_utc(r.created_at)}
+                for r in s.scalars(select(Reservation).order_by(Reservation.created_at))]
+
+
+@router.delete("/reservations/{request_id}")
+async def release_reservation(request_id: str):
+    if not ledger.release_reservation(request_id):
+        raise ProxyError(404, "Reservation not found", code="not_found")
+    return {"released": request_id}
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 
@@ -103,9 +118,11 @@ async def get_status_bar_config():
 
 @router.post("/status-bar/config")
 async def update_status_bar_config(body: dict):
-    from ..status_bar_config import StatusBarConfig, save_status_bar_config
+    from ..status_bar_config import StatusBarConfig, load_status_bar_config, save_status_bar_config
     try:
-        new_cfg = StatusBarConfig.model_validate(body)
+        current = load_status_bar_config().model_dump()
+        current.update(body)
+        new_cfg = StatusBarConfig.model_validate(current)
     except Exception as e:
         raise ProxyError(400, f"Invalid configuration: {e}", code="invalid_config")
     save_status_bar_config(new_cfg)
@@ -307,8 +324,12 @@ async def topup(user_id: int, body: TopUpBody):
 
 
 @router.get("/ledger")
-async def get_ledger(user_id: int | None = None, limit: int = Query(100, le=1000)):
-    return ledger.recent(user_id, limit)
+async def get_ledger(user_id: int | None = None, limit: int = Query(100, ge=1, le=1000),
+                     key_id: int | None = None, provider: str | None = None, model: str | None = None,
+                     start: dt.datetime | None = None, end: dt.datetime | None = None,
+                     before_id: int | None = Query(None, ge=1)):
+    return ledger.recent(user_id, limit, key_id=key_id, provider=provider, model=model,
+                         start=start, end=end, before_id=before_id)
 
 
 @router.get("/usage/daily")
@@ -320,6 +341,8 @@ class KeyCreate(BaseModel):
     user_id: int
     label: str = ""
     budget_usd: float | None = Field(None, gt=0)  # lifetime spending cap for this key
+    daily_budget_usd: float | None = Field(None, gt=0)
+    monthly_budget_usd: float | None = Field(None, gt=0)
     expires_at: dt.datetime | None = None  # ISO-8601; a value without an offset is taken as UTC
     expires_in_days: float | None = Field(None, gt=0)  # convenience alternative to expires_at
     allowed_models: list[str] | None = None  # exact ids or globs, e.g. ["claude/haiku", "agy/*"]
@@ -328,6 +351,8 @@ class KeyCreate(BaseModel):
 class KeyPatch(BaseModel):
     label: str | None = None
     budget_usd: float | None = Field(None, gt=0)
+    daily_budget_usd: float | None = Field(None, gt=0)
+    monthly_budget_usd: float | None = Field(None, gt=0)
     expires_at: dt.datetime | None = None
     allowed_models: list[str] | None = None
 
@@ -345,6 +370,8 @@ def key_out(k: ApiKey, u: User | None, spent: float) -> dict:
     return {"id": k.id, "user_id": k.user_id, "user": u.name if u else "?", "label": k.label, "prefix": k.prefix,
             "revoked": k.revoked, "created_at": iso_utc(k.created_at), "last_used_at": iso_utc(k.last_used_at),
             "credits_usd": u.credits_usd if u else 0.0, "budget_usd": k.budget_usd, "spent_usd": spent,
+            "daily_budget_usd": k.daily_budget_usd, "monthly_budget_usd": k.monthly_budget_usd,
+            "daily_spent_usd": ledger.key_period_spent(k.id, "daily"), "monthly_spent_usd": ledger.key_period_spent(k.id, "monthly"),
             "expires_at": iso_utc(k.expires_at), "allowed_models": k.allowed_models or []}  # fmt: skip
 
 
@@ -366,7 +393,7 @@ async def create_key(body: KeyCreate):
         if expires is None and body.expires_in_days:
             expires = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=body.expires_in_days)
         k = ApiKey(user_id=body.user_id, label=body.label, prefix=key_display_prefix(key), key_hash=hash_proxy_key(key),
-                   budget_usd=body.budget_usd, expires_at=expires, allowed_models=_clean_models(body.allowed_models))  # fmt: skip
+                   budget_usd=body.budget_usd, daily_budget_usd=body.daily_budget_usd, monthly_budget_usd=body.monthly_budget_usd, expires_at=expires, allowed_models=_clean_models(body.allowed_models))  # fmt: skip
         s.add(k)
         s.flush()
         return {"id": k.id, "key": key, "prefix": k.prefix, "budget_usd": k.budget_usd, "expires_at": iso_utc(k.expires_at),
@@ -385,6 +412,10 @@ async def update_key(key_id: int, body: KeyPatch):
             k.label = data["label"] or ""
         if "budget_usd" in data:
             k.budget_usd = data["budget_usd"]
+        if "daily_budget_usd" in data:
+            k.daily_budget_usd = data["daily_budget_usd"]
+        if "monthly_budget_usd" in data:
+            k.monthly_budget_usd = data["monthly_budget_usd"]
         if "expires_at" in data:
             k.expires_at = _utc(data["expires_at"])
         if "allowed_models" in data:

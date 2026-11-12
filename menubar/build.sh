@@ -27,7 +27,7 @@ cat << 'EOF' > "$CONTENTS_DIR/Info.plist"
     <key>CFBundleIdentifier</key>
     <string>com.ai-credit-proxy.menubar</string>
     <key>CFBundleName</key>
-    <string>LLM Gateway Status Bar</string>
+    <string>AgentBridge Status Bar</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

@@ -1,7 +1,8 @@
 import json
 import os
 from pathlib import Path
-from pydantic import BaseModel, Field
+from typing import Literal
+from pydantic import BaseModel, Field, model_validator
 
 
 class EnabledProviders(BaseModel):
@@ -13,7 +14,24 @@ class EnabledProviders(BaseModel):
 class StatusBarConfig(BaseModel):
     enabled_providers: EnabledProviders = Field(default_factory=EnabledProviders)
     pinned_metric: str = "antigravity_gemini_5h"
-    refresh_interval_seconds: int = 3
+    selected_clis: list[str] = Field(default_factory=lambda: ["antigravity"], min_length=1, max_length=2)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_selection(cls, value):
+        if isinstance(value, dict) and "selected_clis" not in value:
+            value = dict(value)
+            pinned = value.get("pinned_metric", "antigravity_gemini_5h")
+            value["selected_clis"] = [next((p for p in ("codex", "claude", "antigravity") if pinned.startswith(p)), "antigravity")]
+        return value
+
+    @model_validator(mode="after")
+    def validate_selection(self):
+        if len(set(self.selected_clis)) != len(self.selected_clis) or any(p not in ("codex", "claude", "antigravity") for p in self.selected_clis):
+            raise ValueError("Select one or two distinct CLI providers")
+        return self
+    display_mode: Literal["bars", "compact"] = "bars"
+    refresh_interval_seconds: int = Field(default=3, ge=2, le=300)
     antigravity_ls_address: str = ""
     antigravity_csrf_token: str = ""
     codex_sqlite_path: str = ""
@@ -21,9 +39,8 @@ class StatusBarConfig(BaseModel):
 
 
 def _config_file_path() -> Path:
-    # Try finding data dir relative to backend
-    cur = Path(__file__).resolve().parent.parent / "data" / "status_bar_config.json"
-    return cur
+    from .config import get_settings
+    return get_settings().data_dir / "status_bar_config.json"
 
 
 def load_status_bar_config() -> StatusBarConfig:

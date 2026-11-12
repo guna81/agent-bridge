@@ -43,6 +43,8 @@ class ApiKey(Base):
     last_used_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # per-key limits (all optional; None = unlimited)
     budget_usd: Mapped[float | None] = mapped_column(Float, nullable=True)  # lifetime spending cap for this key
+    daily_budget_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    monthly_budget_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     allowed_models: Mapped[list | None] = mapped_column(JSON, nullable=True)  # ["claude/haiku", "agy/*"]
 
@@ -83,7 +85,21 @@ class Ledger(Base):
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     estimated: Mapped[bool] = mapped_column(Boolean, default=False)  # tokens/cost estimated, not CLI-reported
     status: Mapped[str] = mapped_column(String(16), default="ok")  # ok | error | aborted
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pricing_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    input_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    output_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class Reservation(Base):
+    __tablename__ = "reservations"
+    request_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    key_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    amount_usd: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class TopUp(Base):

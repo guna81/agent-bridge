@@ -21,7 +21,7 @@ from ..adapters.base import Done, Error, Image, NormalizedRequest, TextDelta, Us
 from ..errors import ProxyError
 from ..pricing import estimate_tokens
 from ..service import run_chat
-from .common import check_image_count, check_key_limits, collect, decode_image, error_to_proxy, first_events, read_json_limited, resolve_provider
+from .common import check_image_count, check_key_limits, collect, decode_image, error_to_proxy, first_events, read_json_limited, resolve_routed_provider
 from .deps import authenticate_key
 
 router = APIRouter()
@@ -93,7 +93,9 @@ def normalize(body: MessagesRequest, slug: str, tools: list[toolcall.ToolSpec], 
     turns: list[tuple[str, str]] = []
     images: list[Image] = []
     call_names: dict[str, str] = {}
+    images_by_turn: dict[int, list[Image]] = {}
     for m in body.messages:
+        before = len(images)
         role, content = m.get("role"), m.get("content")
         if role not in ("user", "assistant"):
             raise _bad(f"Unsupported message role {role!r}.")
@@ -105,6 +107,8 @@ def normalize(body: MessagesRequest, slug: str, tools: list[toolcall.ToolSpec], 
             if t == "text":
                 texts.append(b.get("text", ""))
             elif t == "image":
+                if role != "user":
+                    raise _bad("Images are supported only in user messages.", "unsupported_content")
                 src = b.get("source") or {}
                 if src.get("type") != "base64":
                     raise _bad("Only base64 image sources are supported (remote image URLs are not fetched).", "unsupported_content")
@@ -125,14 +129,16 @@ def normalize(body: MessagesRequest, slug: str, tools: list[toolcall.ToolSpec], 
         if results:
             turns.append(("tool", "\n".join(results)))
         text = "\n".join(x for x in texts if x)
-        if text or not results:
+        if text or not results or len(images) != before:
+            if len(images) != before:
+                images_by_turn[len(turns)] = images[before:]
             turns.append((role, text))
     check_image_count(images)
     system = [_system_text(body.system)]
     if tools:
         system.append(toolcall.instructions(tools, choice))
     return NormalizedRequest(model=slug, system="\n\n".join(s for s in system if s), turns=turns, stream=body.stream,
-                             max_tokens=body.max_tokens, temperature=body.temperature, images=images)  # fmt: skip
+                             max_tokens=body.max_tokens, temperature=body.temperature, images=images, images_by_turn=images_by_turn)  # fmt: skip
 
 
 def _usage(usage: Usage | None) -> dict:
@@ -158,12 +164,15 @@ async def messages(request: Request):
         except ValidationError as e:
             first = e.errors()[0]
             raise _bad(f"Invalid request: {'.'.join(map(str, first['loc']))}: {first['msg']}") from None
-        provider, slug = resolve_provider(body.model)
+        requested_model = body.model
+        provider, slug, body.model = resolve_routed_provider(key, requested_model)
         budget_cap = check_key_limits(key, body.model)
         tools, choice = parse_tools(body)
         nreq = normalize(body, slug, tools, choice)
         msg_id = "msg_" + uuid.uuid4().hex[:24]
-        headers = {"X-Request-Id": msg_id}
+        headers = {"X-Request-Id": msg_id, "X-Proxy-Model": body.model}
+        if body.model != requested_model:
+            headers["X-Proxy-Requested-Model"] = requested_model
         gen = run_chat(request.app.state.service, provider, user.id, nreq, msg_id, key_id=key.id, budget_cap=budget_cap)
         sse_headers = {**headers, "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 

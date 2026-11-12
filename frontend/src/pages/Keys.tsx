@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { admin, ago, fullTime, KeyRow, LedgerRow, money, num, setPlaygroundKey, until, UserRow } from "../api";
 import type { Tab } from "../App";
+import Operations from "../components/Operations";
 import { Confirm, CopyButton, Empty, ErrorNote, Field, Modal, Pill } from "../components/ui";
 
 type Dialog =
@@ -11,7 +12,7 @@ type Dialog =
   | { kind: "revoke"; key: KeyRow }
   | null;
 
-export default function Keys({ go }: { go: (t: Tab) => void }) {
+export default function Keys({ go, usageOnly = false }: { go: (t: Tab) => void; usageOnly?: boolean }) {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [keys, setKeys] = useState<KeyRow[]>([]);
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
@@ -53,21 +54,21 @@ export default function Keys({ go }: { go: (t: Tab) => void }) {
     <>
       <div className="page-head">
         <div>
-          <h1>Keys &amp; usage</h1>
-          <p className="muted">Users hold credits; each API key belongs to a user and can carry its own limits.</p>
+          <h1>{usageOnly ? "Request usage" : "API keys & users"}</h1>
+          <p className="muted">{usageOnly ? "Explore gateway requests, costs, and usage. Subscription limits are shown separately." : "Users hold credits; each API key belongs to a user and can carry its own limits."}</p>
         </div>
-        <div className="row">
+        {!usageOnly && <div className="row">
           <button className="ghost" onClick={() => setDialog({ kind: "user" })}>
             Add user
           </button>
           <button className="primary" onClick={() => setDialog({ kind: "key" })} disabled={users.length === 0}>
             New API key
           </button>
-        </div>
+        </div>}
       </div>
       <ErrorNote message={error} />
 
-      {fresh && (
+      {!usageOnly && fresh && (
         <div className="note ok keybox">
           <strong>New key for {fresh.user}. Copy it now: it is stored hashed and cannot be shown again.</strong>
           <div className="row">
@@ -89,6 +90,7 @@ export default function Keys({ go }: { go: (t: Tab) => void }) {
         </div>
       )}
 
+      {!usageOnly && <>
       <section className="card">
         <div className="card-head">
           <h2>Users</h2>
@@ -184,6 +186,7 @@ export default function Keys({ go }: { go: (t: Tab) => void }) {
                             </span>
                           </div>
                         )}
+                        {(k.daily_budget_usd !== null || k.monthly_budget_usd !== null) && <div className="muted small">{k.daily_budget_usd !== null && `Today ${money(k.daily_spent_usd)} / ${money(k.daily_budget_usd)} `}{k.monthly_budget_usd !== null && `Month ${money(k.monthly_spent_usd)} / ${money(k.monthly_budget_usd)}`}</div>}
                       </td>
                       <td className="small">{k.allowed_models.length ? k.allowed_models.join(", ") : <span className="muted">all</span>}</td>
                       <td className="small" title={fullTime(k.expires_at)}>
@@ -213,6 +216,8 @@ export default function Keys({ go }: { go: (t: Tab) => void }) {
         )}
       </section>
 
+      </>}
+      {usageOnly && <>
       <section className="card">
         <div className="card-head">
           <h2>Recent requests</h2>
@@ -273,6 +278,9 @@ export default function Keys({ go }: { go: (t: Tab) => void }) {
         )}
         <p className="muted small">Showing the latest {rows.length} of up to 100 loaded. Times are in your local time zone.</p>
       </section>
+
+      <Operations users={users} keys={keys} onChanged={() => void load()} />
+      </>}
 
       {dialog?.kind === "user" && <UserDialog onClose={() => setDialog(null)} onDone={done} />}
       {dialog?.kind === "topup" && <TopUpDialog user={dialog.user} onClose={() => setDialog(null)} onDone={done} />}
@@ -394,6 +402,8 @@ function KeyDialog({ users, user, editing, models, onClose, onDone }: {
   const [userId, setUserId] = useState(editing?.user_id ?? user?.id ?? users[0]?.id ?? 0);
   const [label, setLabel] = useState(editing?.label ?? "");
   const [budget, setBudget] = useState(editing?.budget_usd?.toString() ?? "");
+  const [dailyBudget, setDailyBudget] = useState(editing?.daily_budget_usd?.toString() ?? "");
+  const [monthlyBudget, setMonthlyBudget] = useState(editing?.monthly_budget_usd?.toString() ?? "");
   const [expires, setExpires] = useState(toLocalInput(editing?.expires_at ?? null));
   const [allowed, setAllowed] = useState((editing?.allowed_models ?? []).join(", "));
   const [err, setErr] = useState("");
@@ -402,6 +412,8 @@ function KeyDialog({ users, user, editing, models, onClose, onDone }: {
     const body = {
       label,
       budget_usd: budget ? Number(budget) : null,
+      daily_budget_usd: dailyBudget ? Number(dailyBudget) : null,
+      monthly_budget_usd: monthlyBudget ? Number(monthlyBudget) : null,
       expires_at: expires ? new Date(expires).toISOString() : null,
       allowed_models: allowed.split(",").map((s) => s.trim()).filter(Boolean),
     };
@@ -441,9 +453,11 @@ function KeyDialog({ users, user, editing, models, onClose, onDone }: {
           <Field label="Label" hint="Optional. Where the key is used.">
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="laptop, ci, my-agent" />
           </Field>
-          <Field label="Spending cap (USD)" hint="Optional. The key stops working once it has spent this much.">
+          <Field label="Spending budget (USD)" hint="Optional. Requests stop once the budget is exhausted; a running request may exceed it.">
             <input type="number" min={0} step="0.5" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="no cap" />
           </Field>
+          <Field label="Daily budget (USD)" hint="Optional. Resets at midnight UTC."><input type="number" min="0.000001" step="any" value={dailyBudget} onChange={(e) => setDailyBudget(e.target.value)} placeholder="no limit" /></Field>
+          <Field label="Monthly budget (USD)" hint="Optional. Resets on the first day of each UTC month."><input type="number" min="0.000001" step="any" value={monthlyBudget} onChange={(e) => setMonthlyBudget(e.target.value)} placeholder="no limit" /></Field>
           <Field label="Expires" hint="Optional. Your local time.">
             <input type="datetime-local" value={expires} onChange={(e) => setExpires(e.target.value)} />
           </Field>

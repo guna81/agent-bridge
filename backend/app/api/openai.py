@@ -5,7 +5,7 @@ import time
 import uuid
 from typing import Any, AsyncIterator
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
@@ -15,6 +15,8 @@ from ..adapters.base import Done, Error, Image, NormalizedRequest, TextDelta, Us
 from ..db import session_scope
 from ..errors import ProxyError
 from ..models import Provider
+from ..backends.direct import ANTHROPIC_MODELS
+from ..pricing import pricing_rate
 from ..service import run_chat
 from .common import (
     check_image_count,
@@ -26,6 +28,7 @@ from .common import (
     model_allowed,
     read_json_limited,
     resolve_provider,
+    resolve_routed_provider,
 )
 from .deps import authenticate_key
 
@@ -105,11 +108,17 @@ def normalize(body: ChatRequest, slug: str, tools: list[toolcall.ToolSpec] | Non
     turns: list[tuple[str, str]] = []
     images: list[Image] = []
     call_names: dict[str, str] = {}
+    images_by_turn: dict[int, list[Image]] = {}
     for m in body.messages:
+        before = len(images)
         text = _parts_of(m, images)
+        if len(images) != before and m.role != "user":
+            raise ProxyError(400, "Images are supported only in user messages.", "invalid_request_error", "unsupported_content")
         if m.role in ("system", "developer"):
             system.append(text)
         elif m.role == "user":
+            if len(images) != before:
+                images_by_turn[len(turns)] = images[before:]
             turns.append(("user", text))
         elif m.role == "assistant":
             calls = []
@@ -131,7 +140,7 @@ def normalize(body: ChatRequest, slug: str, tools: list[toolcall.ToolSpec] | Non
         system.append(toolcall.instructions(tools, choice))
     return NormalizedRequest(model=slug, system="\n\n".join(s for s in system if s), turns=turns, stream=body.stream,
                              max_tokens=body.max_completion_tokens or body.max_tokens, temperature=body.temperature,
-                             images=images)  # fmt: skip
+                             images=images, images_by_turn=images_by_turn)  # fmt: skip
 
 
 def ignored_params(body: ChatRequest, provider: Provider) -> list[str]:
@@ -170,6 +179,24 @@ async def me(request: Request):
     return out
 
 
+@router.get("/v1/estimate")
+async def estimate(request: Request, model: str, input_tokens: int = Query(0, ge=0, le=10_000_000),
+                   output_tokens: int = Query(0, ge=0, le=10_000_000)):
+    key, _ = authenticate_key(request)
+    provider, slug, selected = resolve_routed_provider(key, model)
+    extra = provider.extra or {}
+    resolved = slug
+    if provider.backend == "direct":
+        resolved = (extra.get("direct_model_map") or {}).get(slug) or (
+            ANTHROPIC_MODELS.get(slug, slug) if provider.kind == "claude" else slug.removesuffix("-high").removesuffix("-medium").removesuffix("-low"))
+    rates = extra.get("pricing_rates") if isinstance(extra.get("pricing_rates"), dict) else {}
+    pin, pout = pricing_rate(resolved, rates)
+    return {"model": selected, "pricing_model": resolved, "input_rate": pin, "output_rate": pout,
+            "input_tokens": input_tokens, "output_tokens": output_tokens,
+            "cost_usd": (input_tokens * pin + output_tokens * pout) / 1_000_000,
+            "explicit_rate": resolved in rates}
+
+
 def _usage(usage: Usage | None) -> dict:
     pt, ct = (usage.input_tokens, usage.output_tokens) if usage else (0, 0)
     return {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}
@@ -191,13 +218,16 @@ async def chat_completions(request: Request):
     except ValidationError as e:
         first = e.errors()[0]
         raise ProxyError(400, f"Invalid request: {'.'.join(map(str, first['loc']))}: {first['msg']}", "invalid_request_error", "invalid_request") from None
-    provider, slug = resolve_provider(body.model)
+    requested_model = body.model
+    provider, slug, body.model = resolve_routed_provider(key, requested_model)
     budget_cap = check_key_limits(key, body.model)
     tools, choice = parse_tools(body)
     nreq = normalize(body, slug, tools, choice)
     request_id = "chatcmpl-" + uuid.uuid4().hex[:24]
     created = int(time.time())
-    headers = {"X-Request-Id": request_id}
+    headers = {"X-Request-Id": request_id, "X-Proxy-Model": body.model}
+    if body.model != requested_model:
+        headers["X-Proxy-Requested-Model"] = requested_model
     ig = ignored_params(body, provider)
     if ig:
         headers["X-Proxy-Ignored-Params"] = ",".join(ig)

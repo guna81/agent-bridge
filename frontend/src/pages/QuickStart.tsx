@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { admin, Provider } from "../api";
+import type { Tab } from "../App";
 import { Code } from "../components/ui";
 
-export default function QuickStart() {
+export default function QuickStart({ go }: { go: (t: Tab) => void }) {
   const [model, setModel] = useState("claude/haiku");
   const base = location.origin;
 
@@ -19,13 +20,17 @@ export default function QuickStart() {
     <>
       <div className="page-head">
         <div>
-          <h1>Quick start</h1>
+          <h1>API quick start</h1>
           <p className="muted">
-            Point any OpenAI- or Anthropic-compatible client at this server. Use a proxy key from the Keys page; examples use <code>{model}</code>.
+            Point any OpenAI- or Anthropic-compatible client at this server. Use an API key from the API keys & users page; examples use <code>{model}</code>.
           </p>
         </div>
       </div>
 
+      <section className="card">
+        <h2>Get started</h2>
+        <ol><li><button className="link" onClick={() => go("providers")}>Connect and enable a provider</button>.</li><li><button className="link" onClick={() => go("keys")}>Add a user, credits, and an API key</button>.</li><li><button className="link" onClick={() => go("playground")}>Test a request in Playground</button>, then connect your client using the examples below.</li></ol>
+      </section>
       <section className="card">
         <h2>OpenAI-compatible</h2>
         <p className="muted">

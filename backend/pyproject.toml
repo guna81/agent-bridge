@@ -12,6 +12,9 @@ dependencies = [
   "cryptography>=42",
   "httpx>=0.27",
   "jsonpath-ng>=1.6",
+  "psutil>=6",
+  "pystray>=0.19.5; sys_platform != 'darwin'",
+  "pillow>=10; sys_platform != 'darwin'",
 ]
 
 [project.optional-dependencies]

@@ -561,3 +561,45 @@ def test_status_bar_config_and_antigravity(live):
 
 
 
+
+
+def test_codex_session_limits_show_reported_windows(tmp_path, monkeypatch):
+    import json
+    from app.rate_limits_reader import get_codex_rate_limits
+
+    monkeypatch.setenv('HOME', str(tmp_path))
+    sessions = tmp_path / '.codex' / 'sessions' / '2026' / '11' / '12'
+    sessions.mkdir(parents=True)
+    event = {'timestamp': '2026-11-12T16:51:05Z', 'payload': {'type': 'token_count', 'rate_limits': {
+        'limit_id': 'codex', 'primary': {'used_percent': 4.5, 'window_minutes': 10080, 'resets_at': 1794644413}, 'secondary': None}}}
+    (sessions / 'session.jsonl').write_text(json.dumps(event) + '\n')
+    limits = get_codex_rate_limits()
+    assert limits['five_hour'] is None
+    assert limits['weekly']['used_percent'] == 4.5
+    assert limits['weekly']['left_percent'] == 95.5
+    assert limits['updated_at'] == event['timestamp']
+
+
+def test_status_bar_cli_selection_migration_and_validation():
+    from pydantic import ValidationError
+    from app.status_bar_config import StatusBarConfig
+
+    assert StatusBarConfig.model_validate({"pinned_metric": "codex_weekly"}).selected_clis == ["codex"]
+    assert StatusBarConfig.model_validate({"selected_clis": ["codex", "claude"]}).selected_clis == ["codex", "claude"]
+    for invalid in ([], ["codex", "claude", "antigravity"], ["codex", "codex"], ["unknown"]):
+        with pytest.raises(ValidationError):
+            StatusBarConfig.model_validate({"selected_clis": invalid})
+
+
+def test_missing_usage_is_unavailable(tmp_path, monkeypatch):
+    import json
+    from app.rate_limits_reader import get_claude_rate_limits
+
+    missing = tmp_path / "missing.json"
+    assert get_claude_rate_limits(str(missing)) is None
+    missing.write_text(json.dumps({"cachedUsageUtilization": {"utilization": {
+        "five_hour": {"utilization": 25}, "seven_day": {}
+    }}}))
+    result = get_claude_rate_limits(str(missing))
+    assert result["five_hour"]["left_percent"] == 75
+    assert result["weekly"] is None

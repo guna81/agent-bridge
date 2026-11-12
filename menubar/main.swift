@@ -35,8 +35,8 @@ struct TotalsStat: Decodable {
 
 struct LimitWindow: Decodable {
     let label: String?
-    let used_percent: Int
-    let left_percent: Int
+    let used_percent: Double
+    let left_percent: Double
     let reset_at: Int?
     let reset_str: String?
     let is_exhausted: Bool
@@ -45,8 +45,8 @@ struct LimitWindow: Decodable {
 struct ScopedLimitWindow: Decodable {
     let label: String?
     let model_name: String
-    let used_percent: Int
-    let left_percent: Int
+    let used_percent: Double
+    let left_percent: Double
     let reset_str: String?
     let is_exhausted: Bool
 }
@@ -63,7 +63,9 @@ struct ProviderRateLimits: Decodable {
 
 struct StatusBarServerConfig: Decodable {
     let pinned_metric: String?
+    let selected_clis: [String]?
     let refresh_interval_seconds: Int?
+    let display_mode: String?
 }
 
 struct StatusBarResponse: Decodable {
@@ -73,7 +75,7 @@ struct StatusBarResponse: Decodable {
     let providers: [ProviderStat]
     let totals: TotalsStat
     let credits_remaining_usd: Double
-    let rate_limits: [String: ProviderRateLimits]?
+    let rate_limits: [String: ProviderRateLimits?]?
     let config: StatusBarServerConfig?
 }
 
@@ -91,6 +93,9 @@ class AppConfig {
     init() {
         findProjectRoot()
         loadEnv()
+        if let host = ProcessInfo.processInfo.environment["PROXY_HOST"] { self.host = host }
+        if let port = ProcessInfo.processInfo.environment["PROXY_PORT"], let value = Int(port) { self.port = value }
+        if let token = ProcessInfo.processInfo.environment["PROXY_ADMIN_TOKEN"] { self.adminToken = token }
         parseArgs()
     }
     
@@ -110,9 +115,7 @@ class AppConfig {
             if parent.path == dir.path { break }
             dir = parent
         }
-        if projectRoot.isEmpty {
-            projectRoot = "/Users/guna/Desktop/Development/ai-credit-proxy"
-        }
+
     }
     
     private func loadEnv() {
@@ -177,6 +180,7 @@ class StatusBarController: NSObject {
     private var latestData: StatusBarResponse?
     private var isOffline: Bool = false
     private var lastSyncedServerPinnedMetric: String? = nil
+    private var pollingInterval: TimeInterval = 0
     
     // Preferences: agent ("codex", "claude", "antigravity"), metric ("session", "weekly", etc.)
     private var selectedAgent: String {
@@ -213,7 +217,14 @@ class StatusBarController: NSObject {
     private func startPolling() {
         timer?.invalidate()
         fetchData()
-        let interval = (latestData?.queue.running ?? 0) > 0 ? 1.0 : AppConfig.shared.refreshInterval
+        schedulePolling(AppConfig.shared.refreshInterval)
+    }
+
+    private func schedulePolling(_ seconds: TimeInterval) {
+        let interval = max(2, min(300, seconds))
+        guard timer == nil || pollingInterval != interval else { return }
+        timer?.invalidate()
+        pollingInterval = interval
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.fetchData()
         }
@@ -252,6 +263,7 @@ class StatusBarController: NSObject {
                 let decoded = try JSONDecoder().decode(StatusBarResponse.self, from: data)
                 DispatchQueue.main.async {
                     self.latestData = decoded
+                    self.schedulePolling(TimeInterval(decoded.config?.refresh_interval_seconds ?? 3))
                     self.isOffline = false
                     if let pinned = decoded.config?.pinned_metric, pinned != self.lastSyncedServerPinnedMetric {
                         self.applyPinnedMetricKey(pinned)
@@ -283,197 +295,88 @@ class StatusBarController: NSObject {
         }
         
         guard let data = latestData else { return }
-        let isRunning = data.queue.running > 0
-        let prefix = isRunning ? "⚡ " : ""
-        
-        let agentLimits = data.rate_limits?[selectedAgent]
-        
-        // Compute progress fraction (0.0 to 1.0) and title string
-        let progress: Double
-        let titleText: String
-        let isExhausted: Bool
-        let isFillingUsed: Bool // Claude fills "used", Codex fills "left"
-        
-        if selectedAgent == "claude" {
-            isFillingUsed = true
-            if selectedMetric == "weekly" {
-                let w = agentLimits?.weekly
-                let used = w?.used_percent ?? 0
-                progress = Double(used) / 100.0
-                isExhausted = used >= 100
-                let reset = w?.reset_str != nil ? " (\(w!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)claude wk: \(used)% used\(reset)"
-                default:
-                    titleText = "\(prefix)claude wk: \(used)% used"
-                }
-            } else if selectedMetric == "weekly_scoped" {
-                let sc = agentLimits?.weekly_scoped
-                let used = sc?.used_percent ?? 0
-                let mName = sc?.model_name.lowercased() ?? "fable"
-                progress = Double(used) / 100.0
-                isExhausted = used >= 100
-                let reset = sc?.reset_str != nil ? " (\(sc!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)\(mName): \(used)% used\(reset)"
-                default:
-                    titleText = "\(prefix)\(mName): \(used)% used"
-                }
-            } else {
-                // Session (five_hour)
-                let s = agentLimits?.five_hour
-                let used = s?.used_percent ?? 0
-                progress = Double(used) / 100.0
-                isExhausted = used >= 100
-                let reset = s?.reset_str != nil ? " (\(s!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)claude: \(used)% used\(reset)"
-                default:
-                    titleText = "\(prefix)claude: \(used)% used"
-                }
+        let selected = data.config?.selected_clis ?? [selectedAgent]
+        let names = ["codex": "Codex", "claude": "Claude", "antigravity": "Antigravity"]
+        button.image = data.config?.display_mode == "compact" ? drawBridgeIcon() : drawCompactUsage(selected: selected, data: data)
+        button.title = ""
+        button.toolTip = selected.map { name in
+            let limits = data.rate_limits?[name] ?? nil
+            func value(_ window: LimitWindow?) -> String {
+                guard let window = window else { return "unavailable" }
+                return String(format: "%.1f%% remaining", max(0, min(100, 100 - window.used_percent)))
             }
-        } else if selectedAgent == "antigravity" {
-            // Antigravity: displays % left (just like Codex & Antigravity CLI)
-            isFillingUsed = false
-            if selectedMetric == "weekly" {
-                let w = agentLimits?.weekly
-                let left = w?.left_percent ?? 100
-                progress = Double(left) / 100.0
-                isExhausted = left == 0
-                let reset = w?.reset_str != nil ? " (\(w!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)agy wk: \(left)% left\(reset)"
-                default:
-                    titleText = "\(prefix)agy wk: \(left)% left"
-                }
-            } else if selectedMetric == "claude_gpt_5h" {
-                let c = agentLimits?.claude_gpt_5h
-                let left = c?.left_percent ?? 100
-                progress = Double(left) / 100.0
-                isExhausted = left == 0
-                let reset = c?.reset_str != nil ? " (\(c!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)agy 3p: \(left)% left\(reset)"
-                default:
-                    titleText = "\(prefix)agy 3p: \(left)% left"
-                }
-            } else if selectedMetric == "claude_gpt_weekly" {
-                let c = agentLimits?.claude_gpt_weekly
-                let left = c?.left_percent ?? 100
-                progress = Double(left) / 100.0
-                isExhausted = left == 0
-                let reset = c?.reset_str != nil ? " (\(c!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)agy 3pw: \(left)% left\(reset)"
-                default:
-                    titleText = "\(prefix)agy 3pw: \(left)% left"
-                }
-            } else {
-                // 5-hour limit
-                let f = agentLimits?.five_hour
-                let left = f?.left_percent ?? 100
-                progress = Double(left) / 100.0
-                isExhausted = left == 0
-                let reset = f?.reset_str != nil ? " (\(f!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)agy 5h: \(left)% left\(reset)"
-                default:
-                    titleText = "\(prefix)agy 5h: \(left)% left"
-                }
-            }
-        } else {
-            // Codex: displays % left (just like Codex CLI)
-            isFillingUsed = false
-            if selectedMetric == "weekly" {
-                let w = agentLimits?.weekly
-                let left = w?.left_percent ?? 0
-                progress = Double(left) / 100.0
-                isExhausted = left == 0
-                let reset = w?.reset_str != nil ? " (\(w!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)codex wk: \(left)% left\(reset)"
-                default:
-                    titleText = "\(prefix)codex wk: \(left)% left"
-                }
-            } else {
-                // 5-hour limit
-                let f = agentLimits?.five_hour
-                let left = f?.left_percent ?? 0
-                progress = Double(left) / 100.0
-                isExhausted = left == 0
-                let reset = f?.reset_str != nil ? " (\(f!.reset_str!))" : ""
-                switch displayFormat {
-                case "bar_only":
-                    titleText = isRunning ? "⚡" : ""
-                case "full":
-                    titleText = "\(prefix)codex 5h: \(left)% left\(reset)"
-                default:
-                    titleText = "\(prefix)codex 5h: \(left)% left"
-                }
-            }
-        }
-        
-        button.image = drawProgressBar(fraction: progress, isFillingUsed: isFillingUsed, isExhausted: isExhausted, isRunning: isRunning)
-        button.title = " \(titleText)"
-        
-        // Tooltip with complete status
-        var tip = ""
-        if let cl = data.rate_limits?["claude"] {
-            tip += "CLAUDE CODE:\n"
-            tip += "• Current session: \(cl.five_hour?.used_percent ?? 0)% used" + (cl.five_hour?.reset_str != nil ? " (resets \(cl.five_hour!.reset_str!))\n" : "\n")
-            tip += "• Current week:    \(cl.weekly?.used_percent ?? 0)% used" + (cl.weekly?.reset_str != nil ? " (resets \(cl.weekly!.reset_str!))\n" : "\n")
-            if let sc = cl.weekly_scoped {
-                tip += "• Current week (\(sc.model_name)): \(sc.used_percent)% used\n"
-            }
-        }
-        if let cx = data.rate_limits?["codex"] {
-            tip += "\nCODEX CLI:\n"
-            tip += "• 5h limit:     \(cx.five_hour?.left_percent ?? 0)% left" + (cx.five_hour?.reset_str != nil ? " (resets \(cx.five_hour!.reset_str!))\n" : "\n")
-            tip += "• Weekly limit: \(cx.weekly?.left_percent ?? 0)% left" + (cx.weekly?.reset_str != nil ? " (resets \(cx.weekly!.reset_str!))\n" : "\n")
-        }
-        if let ag = data.rate_limits?["antigravity"] {
-            tip += "\nGOOGLE ANTIGRAVITY:\n"
-            if let plan = ag.plan_name {
-                tip += "• Plan: \(plan)\n"
-            }
-            tip += "• Gemini 5h limit:     \(ag.five_hour?.left_percent ?? 0)% left" + (ag.five_hour?.reset_str != nil ? " (resets \(ag.five_hour!.reset_str!))\n" : "\n")
-            tip += "• Gemini Weekly limit: \(ag.weekly?.left_percent ?? 0)% left" + (ag.weekly?.reset_str != nil ? " (resets \(ag.weekly!.reset_str!))\n" : "\n")
-            if let c5 = ag.claude_gpt_5h {
-                tip += "• Claude/GPT 5h:       \(c5.left_percent)% left" + (c5.reset_str != nil ? " (resets \(c5.reset_str!))\n" : "\n")
-            }
-            if let cw = ag.claude_gpt_weekly {
-                tip += "• Claude/GPT Weekly:   \(cw.left_percent)% left" + (cw.reset_str != nil ? " (resets \(cw.reset_str!))\n" : "\n")
-            }
-        }
-        button.toolTip = tip
-        
+            return "\(names[name] ?? name): 5h \(value(limits?.five_hour)), weekly \(value(limits?.weekly))"
+        }.joined(separator: "\n") + "\nBars and percentages show remaining capacity. Top: 5h, bottom: weekly"
         rebuildMenu()
     }
-    
+
+    private func drawBridgeIcon() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            NSColor.black.setStroke()
+            let bridge = NSBezierPath()
+            bridge.lineWidth = 1.6
+            bridge.lineCapStyle = .round
+            bridge.lineJoinStyle = .round
+            bridge.move(to: NSPoint(x: 2, y: 7))
+            bridge.curve(to: NSPoint(x: 9, y: 12), controlPoint1: NSPoint(x: 5, y: 7), controlPoint2: NSPoint(x: 6, y: 12))
+            bridge.curve(to: NSPoint(x: 16, y: 7), controlPoint1: NSPoint(x: 12, y: 12), controlPoint2: NSPoint(x: 13, y: 7))
+            bridge.move(to: NSPoint(x: 3, y: 5))
+            bridge.line(to: NSPoint(x: 15, y: 5))
+            bridge.move(to: NSPoint(x: 6, y: 5))
+            bridge.line(to: NSPoint(x: 6, y: 8.5))
+            bridge.move(to: NSPoint(x: 12, y: 5))
+            bridge.line(to: NSPoint(x: 12, y: 8.5))
+            bridge.stroke()
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+
+    // Bars and labels show remaining capacity.
+    private func drawCompactUsage(selected: [String], data: StatusBarResponse) -> NSImage {
+        let apps = ["codex": "/Applications/ChatGPT.app", "claude": "/Applications/Claude.app", "antigravity": "/Applications/Gemini.app"]
+        let icons = selected.map { provider -> NSImage? in
+            guard let path = apps[provider], FileManager.default.fileExists(atPath: path) else { return nil }
+            return NSWorkspace.shared.icon(forFile: path)
+        }
+        let image = NSImage(size: NSSize(width: CGFloat(selected.count * 72 - 4), height: 20), flipped: false) { _ in
+            for (index, provider) in selected.enumerated() {
+                let x = CGFloat(index * 72)
+                if let icon = icons[index] {
+                    icon.draw(in: NSRect(x: x, y: 2, width: 16, height: 16))
+                } else {
+                    let initial = ["codex": "O", "claude": "C", "antigravity": "G"][provider] ?? "?"
+                    let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.boldSystemFont(ofSize: 11), .foregroundColor: NSColor.labelColor]
+                    (initial as NSString).draw(at: NSPoint(x: x + 2, y: 3), withAttributes: attrs)
+                }
+                let limits = data.rate_limits?[provider] ?? nil
+                for (barIndex, window) in [limits?.five_hour, limits?.weekly].enumerated() {
+                    let rect = NSRect(x: x + 18, y: barIndex == 0 ? 11 : 4, width: 20, height: 5)
+                    NSColor.systemGray.withAlphaComponent(0.35).setFill()
+                    NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2).fill()
+                    let label: String
+                    if let window = window {
+                        let used = max(0, min(1, window.used_percent / 100))
+                        let remaining = 1 - used
+                        let color: NSColor = used >= 0.9 ? .systemRed : used >= 0.7 ? .systemOrange : .systemGreen
+                        if remaining > 0 {
+                            color.setFill()
+                            NSBezierPath(roundedRect: NSRect(x: rect.minX, y: rect.minY, width: max(1, rect.width * remaining), height: rect.height), xRadius: 2, yRadius: 2).fill()
+                        }
+                        label = String(format: "%.0f%%", remaining * 100)
+                    } else { label = "—" }
+                    let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 8, weight: .medium), .foregroundColor: NSColor.labelColor]
+                    (label as NSString).draw(at: NSPoint(x: x + 41, y: barIndex == 0 ? 8 : 1), withAttributes: attrs)
+                }
+            }
+            return true
+        }
+        image.isTemplate = false
+        image.accessibilityDescription = "CLI remaining percentages and 5-hour and weekly capacity"
+        return image
+    }
+
     // MARK: - Progress Bar Graphics
     
     private func drawProgressBar(fraction: Double, isFillingUsed: Bool, isExhausted: Bool, isRunning: Bool) -> NSImage {
@@ -572,237 +475,64 @@ class StatusBarController: NSObject {
     private func rebuildMenu() {
         let menu = NSMenu()
         menu.autoenablesItems = false
-        
-        let monospacedFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
-        
-        // --- 1. Claude Code Section (Exact CLI UI) ---
-        let claudeTitle = NSMenuItem(title: "CLAUDE CODE USAGE", action: nil, keyEquivalent: "")
-        claudeTitle.isEnabled = false
-        menu.addItem(claudeTitle)
-        
-        let clLimits = latestData?.rate_limits?["claude"]
-        let clSession = clLimits?.five_hour
-        let clWeekly = clLimits?.weekly
-        let clScoped = clLimits?.weekly_scoped
-        
-        // Session
-        let sUsed = clSession?.used_percent ?? 7
-        let sBar = unicodeBar(percent: sUsed, width: 10)
-        let sReset = clSession?.reset_str != nil ? " (Resets \(clSession!.reset_str!))" : ""
-        let sTitle = String(format: "  Current session:            %@ %2d%% used%@", sBar, sUsed, sReset)
-        let sItem = NSMenuItem(title: sTitle, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-        sItem.target = self
-        sItem.representedObject = ["agent": "claude", "metric": "session"]
-        sItem.state = (selectedAgent == "claude" && selectedMetric == "session") ? .on : .off
-        sItem.attributedTitle = NSAttributedString(string: sTitle, attributes: [.font: monospacedFont])
-        menu.addItem(sItem)
-        
-        // Weekly (all models)
-        let wUsed = clWeekly?.used_percent ?? 93
-        let wBar = unicodeBar(percent: wUsed, width: 10)
-        let wReset = clWeekly?.reset_str != nil ? " (Resets \(clWeekly!.reset_str!))" : ""
-        let wTitle = String(format: "  Current week (all models):  %@ %2d%% used%@", wBar, wUsed, wReset)
-        let wItem = NSMenuItem(title: wTitle, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-        wItem.target = self
-        wItem.representedObject = ["agent": "claude", "metric": "weekly"]
-        wItem.state = (selectedAgent == "claude" && selectedMetric == "weekly") ? .on : .off
-        wItem.attributedTitle = NSAttributedString(string: wTitle, attributes: [.font: monospacedFont])
-        menu.addItem(wItem)
-        
-        // Weekly (Fable / Scoped)
-        if let sc = clScoped {
-            let scUsed = sc.used_percent
-            let scBar = unicodeBar(percent: scUsed, width: 10)
-            let scReset = sc.reset_str != nil ? " (Resets \(sc.reset_str!))" : ""
-            let scTitle = String(format: "  Current week (%-12@): %@ %2d%% used%@", sc.model_name, scBar, scUsed, scReset)
-            let scItem = NSMenuItem(title: scTitle, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-            scItem.target = self
-            scItem.representedObject = ["agent": "claude", "metric": "weekly_scoped"]
-            scItem.state = (selectedAgent == "claude" && selectedMetric == "weekly_scoped") ? .on : .off
-            scItem.attributedTitle = NSAttributedString(string: scTitle, attributes: [.font: monospacedFont])
-            menu.addItem(scItem)
+        let selected = latestData?.config?.selected_clis ?? [selectedAgent]
+        let names = [("codex", "Codex"), ("claude", "Claude Code"), ("antigravity", "Antigravity")]
+        for (id, name) in names {
+            let header = NSMenuItem(title: name, action: nil, keyEquivalent: "")
+            menu.addItem(header)
+            let limits = latestData?.rate_limits?[id] ?? nil
+            for (label, window) in [("5-hour", limits?.five_hour), ("Weekly", limits?.weekly)] {
+                let detail: String
+                if let window = window {
+                    detail = String(format: "%.1f%% remaining", max(0, min(100, 100 - window.used_percent))) + (window.reset_str.map { " · resets \($0)" } ?? "")
+                } else { detail = "Unavailable" }
+                let item = NSMenuItem(title: "  \(label): \(detail)", action: nil, keyEquivalent: "")
+                menu.addItem(item)
+            }
         }
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        // --- 2. Codex CLI Section ---
-        let codexTitle = NSMenuItem(title: "CODEX CLI LIMITS", action: nil, keyEquivalent: "")
-        codexTitle.isEnabled = false
-        menu.addItem(codexTitle)
-        
-        let cxLimits = latestData?.rate_limits?["codex"]
-        let cx5h = cxLimits?.five_hour
-        let cxWk = cxLimits?.weekly
-        
-        let cx5Left = cx5h?.left_percent ?? 0
-        let cx5Bar = unicodeBar(percent: cx5Left, width: 10)
-        let cx5Reset = cx5h?.reset_str != nil ? " (resets \(cx5h!.reset_str!))" : ""
-        let cx5Title = String(format: "  5h limit:                   %@ %2d%% left%@", cx5Bar, cx5Left, cx5Reset)
-        let cx5Item = NSMenuItem(title: cx5Title, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-        cx5Item.target = self
-        cx5Item.representedObject = ["agent": "codex", "metric": "session"]
-        cx5Item.state = (selectedAgent == "codex" && selectedMetric == "session") ? .on : .off
-        cx5Item.attributedTitle = NSAttributedString(string: cx5Title, attributes: [.font: monospacedFont])
-        menu.addItem(cx5Item)
-        
-        let cxWkLeft = cxWk?.left_percent ?? 48
-        let cxWkBar = unicodeBar(percent: cxWkLeft, width: 10)
-        let cxWkReset = cxWk?.reset_str != nil ? " (resets \(cxWk!.reset_str!))" : ""
-        let cxWkTitle = String(format: "  Weekly limit:               %@ %2d%% left%@", cxWkBar, cxWkLeft, cxWkReset)
-        let cxWkItem = NSMenuItem(title: cxWkTitle, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-        cxWkItem.target = self
-        cxWkItem.representedObject = ["agent": "codex", "metric": "weekly"]
-        cxWkItem.state = (selectedAgent == "codex" && selectedMetric == "weekly") ? .on : .off
-        cxWkItem.attributedTitle = NSAttributedString(string: cxWkTitle, attributes: [.font: monospacedFont])
-        menu.addItem(cxWkItem)
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        // --- 3. Google Antigravity Section ---
-        let agTitleText = (latestData?.rate_limits?["antigravity"]?.plan_name != nil) ?
-            "GOOGLE ANTIGRAVITY (\(latestData!.rate_limits!["antigravity"]!.plan_name!))" : "GOOGLE ANTIGRAVITY"
-        let agTitle = NSMenuItem(title: agTitleText, action: nil, keyEquivalent: "")
-        agTitle.isEnabled = false
-        menu.addItem(agTitle)
-        
-        let agLimits = latestData?.rate_limits?["antigravity"]
-        let ag5h = agLimits?.five_hour
-        let agWk = agLimits?.weekly
-        let agC5 = agLimits?.claude_gpt_5h
-        let agCW = agLimits?.claude_gpt_weekly
-        
-        let ag5Left = ag5h?.left_percent ?? 100
-        let ag5Bar = unicodeBar(percent: ag5Left, width: 10)
-        let ag5Reset = ag5h?.reset_str != nil ? " (resets \(ag5h!.reset_str!))" : ""
-        let ag5Title = String(format: "  Gemini 5h limit:            %@ %2d%% left%@", ag5Bar, ag5Left, ag5Reset)
-        let ag5Item = NSMenuItem(title: ag5Title, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-        ag5Item.target = self
-        ag5Item.representedObject = ["agent": "antigravity", "metric": "session"]
-        ag5Item.state = (selectedAgent == "antigravity" && selectedMetric == "session") ? .on : .off
-        ag5Item.attributedTitle = NSAttributedString(string: ag5Title, attributes: [.font: monospacedFont])
-        menu.addItem(ag5Item)
-        
-        let agWkLeft = agWk?.left_percent ?? 100
-        let agWkBar = unicodeBar(percent: agWkLeft, width: 10)
-        let agWkReset = agWk?.reset_str != nil ? " (resets \(agWk!.reset_str!))" : ""
-        let agWkTitle = String(format: "  Gemini weekly:              %@ %2d%% left%@", agWkBar, agWkLeft, agWkReset)
-        let agWkItem = NSMenuItem(title: agWkTitle, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-        agWkItem.target = self
-        agWkItem.representedObject = ["agent": "antigravity", "metric": "weekly"]
-        agWkItem.state = (selectedAgent == "antigravity" && selectedMetric == "weekly") ? .on : .off
-        agWkItem.attributedTitle = NSAttributedString(string: agWkTitle, attributes: [.font: monospacedFont])
-        menu.addItem(agWkItem)
-        
-        if let c5 = agC5 {
-            let c5Left = c5.left_percent
-            let c5Bar = unicodeBar(percent: c5Left, width: 10)
-            let c5Reset = c5.reset_str != nil ? " (resets \(c5.reset_str!))" : ""
-            let c5Title = String(format: "  Claude/GPT 5h:              %@ %2d%% left%@", c5Bar, c5Left, c5Reset)
-            let c5Item = NSMenuItem(title: c5Title, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-            c5Item.target = self
-            c5Item.representedObject = ["agent": "antigravity", "metric": "claude_gpt_5h"]
-            c5Item.state = (selectedAgent == "antigravity" && selectedMetric == "claude_gpt_5h") ? .on : .off
-            c5Item.attributedTitle = NSAttributedString(string: c5Title, attributes: [.font: monospacedFont])
-            menu.addItem(c5Item)
-        }
-        
-        if let cw = agCW {
-            let cwLeft = cw.left_percent
-            let cwBar = unicodeBar(percent: cwLeft, width: 10)
-            let cwReset = cw.reset_str != nil ? " (resets \(cw.reset_str!))" : ""
-            let cwTitle = String(format: "  Claude/GPT weekly:          %@ %2d%% left%@", cwBar, cwLeft, cwReset)
-            let cwItem = NSMenuItem(title: cwTitle, action: #selector(quickSelectAction(_:)), keyEquivalent: "")
-            cwItem.target = self
-            cwItem.representedObject = ["agent": "antigravity", "metric": "claude_gpt_weekly"]
-            cwItem.state = (selectedAgent == "antigravity" && selectedMetric == "claude_gpt_weekly") ? .on : .off
-            cwItem.attributedTitle = NSAttributedString(string: cwTitle, attributes: [.font: monospacedFont])
-            menu.addItem(cwItem)
-        }
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        // --- 4. Status Bar Display Settings ---
-        let viewMenu = NSMenu()
-        var views = [
-            ("Claude: Current session (\(sUsed)% used)", "claude", "session"),
-            ("Claude: Current week (all models) (\(wUsed)% used)", "claude", "weekly"),
-            ("Claude: Current week (\(clScoped?.model_name ?? "Fable")) (\(clScoped?.used_percent ?? 61)% used)", "claude", "weekly_scoped"),
-            ("Codex: 5h limit (\(cx5Left)% left)", "codex", "session"),
-            ("Codex: Weekly limit (\(cxWkLeft)% left)", "codex", "weekly"),
-            ("Antigravity: Gemini 5h (\(ag5Left)% left)", "antigravity", "session"),
-            ("Antigravity: Gemini Weekly (\(agWkLeft)% left)", "antigravity", "weekly")
-        ]
-        if let c5 = agC5 {
-            views.append(("Antigravity: Claude/GPT 5h (\(c5.left_percent)% left)", "antigravity", "claude_gpt_5h"))
-        }
-        if let cw = agCW {
-            views.append(("Antigravity: Claude/GPT Weekly (\(cw.left_percent)% left)", "antigravity", "claude_gpt_weekly"))
-        }
-        for (label, ag, met) in views {
-            let item = NSMenuItem(title: label, action: #selector(selectAgentMetricAction(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
+        let selection = NSMenu()
+        selection.autoenablesItems = false
+        for (id, name) in names {
+            let item = NSMenuItem(title: name, action: #selector(toggleCLIAction(_:)), keyEquivalent: "")
             item.target = self
-            item.representedObject = ["agent": ag, "metric": met]
-            item.state = (selectedAgent == ag && selectedMetric == met) ? .on : .off
-            viewMenu.addItem(item)
+            item.representedObject = id
+            item.state = selected.contains(id) ? .on : .off
+            item.isEnabled = selected.contains(id) ? selected.count > 1 : selected.count < 2
+            selection.addItem(item)
         }
-        let viewSub = NSMenuItem(title: "Track In Status Bar", action: nil, keyEquivalent: "")
-        viewSub.submenu = viewMenu
-        menu.addItem(viewSub)
-        
-        let formatMenu = NSMenu()
-        let formats = [
-            ("standard", "Standard (e.g. claude: 7% used / codex 5h: 0% left)"),
-            ("full", "Full Details with Reset Time"),
-            ("bar_only", "Progress Bar Only")
-        ]
-        for (key, label) in formats {
-            let item = NSMenuItem(title: label, action: #selector(changeFormatAction(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = key
-            item.state = (displayFormat == key) ? .on : .off
-            formatMenu.addItem(item)
-        }
-        let formatSub = NSMenuItem(title: "Status Bar Style", action: nil, keyEquivalent: "")
-        formatSub.submenu = formatMenu
-        menu.addItem(formatSub)
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        // --- 4. Controls ---
-        let dashItem = NSMenuItem(title: "🌐 Open Web Dashboard", action: #selector(openDashboardAction), keyEquivalent: "d")
-        dashItem.target = self
-        menu.addItem(dashItem)
-        
-        let refreshItem = NSMenuItem(title: "🔄 Refresh Now", action: #selector(refreshAction), keyEquivalent: "r")
-        refreshItem.target = self
-        menu.addItem(refreshItem)
-        
-        let svcMenu = NSMenu()
-        let restartSvc = NSMenuItem(title: "Restart Gateway Service", action: #selector(restartServiceAction), keyEquivalent: "")
-        restartSvc.target = self
-        svcMenu.addItem(restartSvc)
-        
-        let stopSvc = NSMenuItem(title: "Stop Gateway Service", action: #selector(stopServiceAction), keyEquivalent: "")
-        stopSvc.target = self
-        svcMenu.addItem(stopSvc)
-        
-        let logsSvc = NSMenuItem(title: "Open Logs Directory", action: #selector(openLogsAction), keyEquivalent: "")
-        logsSvc.target = self
-        svcMenu.addItem(logsSvc)
-        
-        let svcSub = NSMenuItem(title: "⚙️ Service Controls", action: nil, keyEquivalent: "")
-        svcSub.submenu = svcMenu
-        menu.addItem(svcSub)
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        let quitItem = NSMenuItem(title: "Quit Status Bar App", action: #selector(quitAction), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
-        
+        let selectItem = NSMenuItem(title: "CLIs in Menu Bar (up to 2)", action: nil, keyEquivalent: "")
+        selectItem.submenu = selection
+        menu.addItem(selectItem)
+        menu.addItem(.separator())
+        let dashboard = NSMenuItem(title: "Open Web Dashboard", action: #selector(openDashboardAction), keyEquivalent: "d")
+        dashboard.target = self
+        menu.addItem(dashboard)
+        let refresh = NSMenuItem(title: "Refresh Now", action: #selector(refreshAction), keyEquivalent: "r")
+        refresh.target = self
+        menu.addItem(refresh)
+        let quit = NSMenuItem(title: "Quit Status Bar App", action: #selector(quitAction), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
         statusItem.menu = menu
     }
-    
+
+    @objc private func toggleCLIAction(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        var selected = latestData?.config?.selected_clis ?? [selectedAgent]
+        if selected.contains(id) { selected.removeAll { $0 == id } } else { selected.append(id) }
+        guard (1...2).contains(selected.count), let url = URL(string: "http://\(AppConfig.shared.host):\(AppConfig.shared.port)/admin/status-bar/config") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if !AppConfig.shared.adminToken.isEmpty { req.setValue("Bearer \(AppConfig.shared.adminToken)", forHTTPHeaderField: "Authorization") }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["selected_clis": selected])
+        URLSession.shared.dataTask(with: req) { [weak self] _, response, error in
+            guard error == nil, let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else { return }
+            self?.fetchData()
+        }.resume()
+    }
+
     // MARK: - Actions
     
     private func applyPinnedMetricKey(_ key: String) {

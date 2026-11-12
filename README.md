@@ -1,4 +1,4 @@
-# LLM CLI Gateway
+# AgentBridge
 
 Turn the coding CLIs you already have (Claude Code, OpenAI Codex, Google Antigravity, Gemini CLI, or any custom
 CLI) into a **self-hosted, OpenAI-compatible and Anthropic-compatible API**, with per-user API keys, a credit
@@ -28,7 +28,7 @@ and the cost is charged to the caller's credits.
 |---|---|
 | **Use your own tools with the CLIs you have.** Point any OpenAI/Anthropic SDK, editor plugin or script at one local URL. | Run the proxy on your machine, enable a provider, create a key, set `base_url` to `http://127.0.0.1:8000/v1`. |
 | **Share one provider API key with a team, safely.** Give each person or service their own key instead of the real one. | Add users, top up credits, issue keys with a budget, expiry and model allow-list. Revoke one key without touching the rest. |
-| **Meter and cap spend.** See who spent what, and stop runaway scripts. | Credit ledger, daily usage chart, per-key `budget_usd`, rate limit, Prometheus `/metrics`. |
+| **Meter spend.** See who spent what and limit new requests. | Credit ledger, daily usage chart, per-key `budget_usd`, rate limit, Prometheus `/metrics`. |
 | **One API in front of many models.** Switch between Claude, Codex and Gemini by changing the `model` string. | Model ids are `provider/model`, e.g. `claude/haiku`, `codex/default`. Both API dialects work with every provider. |
 | **Run agents behind an API.** Let a CLI work on a real project directory, or run your own agent loop with `tools`. | Agent mode with `workdir`, function calling on every provider. See [Running custom agents](#running-custom-agents). |
 | **Wrap any command-line program as an API.** | Register it as a custom CLI in the UI. |
@@ -39,10 +39,53 @@ and the cost is charged to the caller's credits.
 - **Providers**: `claude`, `codex`, `agy`, `gemini`, plus any binary you describe in the UI. A direct-API backend
   bypasses the CLI for Claude and Gemini models.
 - **Function calling** (`tools`) on every provider, and **image input** on Claude and Codex.
-- **Users, credits and keys**: hashed keys, per-key spending cap, expiry and model allow-list.
+- **Users, credits and keys**: hashed keys, per-key spending budget, expiry and model allow-list.
 - **Raw or agent mode** per provider; agent mode can be pinned to a project directory.
 - **Operations**: Prometheus `/metrics`, usage dashboard, SQLite or Postgres, optional Redis for multi-instance
   queueing and rate limiting.
+
+## CLI quick start
+
+AgentBridge runs a local gateway with a usage indicator in the macOS menu bar or the Windows/Linux system tray. Once a release has been published, install its packaged CLI without Python or Node.js:
+
+```sh
+# macOS Apple Silicon or Linux x86-64
+curl -fsSL https://raw.githubusercontent.com/guna81/llm-cli-gateway/main/install.sh | sh
+```
+
+```powershell
+# Windows x86-64, PowerShell
+irm https://raw.githubusercontent.com/guna81/llm-cli-gateway/main/install.ps1 | iex
+```
+
+The installers download the latest GitHub Release and verify its SHA-256 checksum. Open a new terminal if necessary, then run `agentbridge start --personal` and `agentbridge dashboard`. The macOS and Linux installer reports where to add the command to your PATH. The Windows installer adds its command directory to your user PATH. Run the installer again to upgrade; previous package files and the old launcher are retained. Release binaries are currently unsigned. The installers need a published release with the matching assets; they do not build from source.
+
+For development, install from a checkout with Python 3.12 (via [uv](https://docs.astral.sh/uv/)) and Node.js/npm:
+
+```bash
+git clone https://github.com/guna81/llm-cli-gateway.git
+cd llm-cli-gateway
+./install-cli.sh
+agentbridge start --personal
+agentbridge dashboard
+```
+
+On Windows, run `./install-cli.ps1` from PowerShell instead of `./install-cli.sh`, add the printed installation directory to your PATH, and open a new terminal. Keep the checkout in place on all platforms.
+
+Keep the checkout in place: the installed command uses its Python environment and built dashboard. Add `~/.local/bin` to your PATH if needed. The dashboard command opens the dashboard signed in. Use `agentbridge dashboard --show-token` if you need to sign in manually. Create a user and API key in **Keys & usage**, then use `http://127.0.0.1:43187/v1` as your API base URL. `--personal` enables reuse of this machine's CLI logins for personal use and configures newly created providers to use them. Install and sign in to each CLI separately. Review provider terms before using subscription credentials through an API. Existing provider settings are never overwritten; edit them in the dashboard if needed.
+
+```bash
+agentbridge status
+agentbridge stop
+agentbridge start                  # remembers the last authentication mode
+agentbridge start --api-key-mode   # disable personal login reuse
+agentbridge start --port 43188      # choose another port
+agentbridge start --no-tray        # gateway only
+```
+
+In the dashboard, open **Status bar** to select providers, choose between compact and usage-bar indicators, and set the refresh interval. Changes reach the indicator on its next poll. Windows and Linux show percentages in the tray menu because tray icons are small. The always-visible desktop widget is not yet available.
+
+The CLI stores its database, secrets, and logs in `~/.agentbridge` (override with `AGENTBRIDGE_HOME`). The gateway binds to loopback. The tray menu displays 5-hour and weekly percentages remaining and reset times for available providers; select up to two providers for the icon. Windows and Linux tray icons show compact colored bars, with percentages in the menu. Linux release builds target glibc-based systems at least as recent as Ubuntu 22.04; Alpine Linux and older systems are not supported by these binaries. On Linux, the tray requires a graphical X11 session and a desktop with a system tray; Wayland-only or headless environments may not support it. If the tray fails to start, the gateway remains available; inspect `~/.agentbridge/tray.log`. The command does not register an automatic login service. Some provider usage sources and interactive CLI login flows are platform-specific and may not be available on every OS.
 
 ## Quick start (local)
 
@@ -193,17 +236,19 @@ Things to know:
   one piece even with `stream: true`, and a model can occasionally ignore the format.
 - **Images** must be inline base64 (`data:` URLs, or Anthropic `base64` sources); remote URLs are never fetched.
   Supported by `claude` and `codex` through the CLI, and by the direct-API backend. Other providers return 400.
+  Direct API providers preserve images on earlier user turns. CLI providers accept images only in the final
+  user message; earlier images are rejected rather than silently moving them to a different turn.
 - `temperature`/`max_tokens` are ignored by the CLIs and listed in the `X-Proxy-Ignored-Params` response header.
 - Errors use `{"error": {message,type,code}}` on the OpenAI routes and `{"type":"error","error":{type,message}}`
   on `/v1/messages`. A client disconnect kills the CLI's whole process group.
 
 ### Per-key limits
 
-Every key can carry a lifetime spending cap, an expiry and a model allow-list (exact ids or globs):
+Every key can carry lifetime, daily, and monthly spending budgets, an expiry and a model allow-list (exact ids or globs). Daily and monthly budgets reset at UTC boundaries; outstanding reservations remain counted until settled or released:
 
 ```bash
 curl -s 127.0.0.1:8000/admin/keys -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{
-  "user_id": 1, "label": "ci", "budget_usd": 2.0, "expires_in_days": 30, "allowed_models": ["claude/haiku", "codex/*"]
+  "user_id": 1, "label": "ci", "budget_usd": 2.0, "daily_budget_usd": 0.5, "monthly_budget_usd": 1.5, "expires_in_days": 30, "allowed_models": ["claude/haiku", "codex/*"]
 }'
 curl -s -X PATCH 127.0.0.1:8000/admin/keys/3 -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
   -d '{"budget_usd": null}'      # null clears a limit; omitted fields are left alone
@@ -211,11 +256,23 @@ curl -s -X PATCH 127.0.0.1:8000/admin/keys/3 -H "Authorization: Bearer $ADMIN" -
 
 Over budget → `429 key_budget_exhausted`; disallowed model → `403 model_not_allowed`; expired → `401`.
 
+The gateway reserves available credits and key budget when a request starts, and settles the actual charge on completion. A reservation prevents concurrent requests from using the same funds. These are **admission limits, not guaranteed hard spending caps**: only the Claude CLI receives a per-run dollar limit, and any backend can report a final cost above its reservation. Direct APIs and the other CLIs do not enforce the dollar limit. Use provider-side spending controls where a hard limit is required.
+
+The **Keys & usage** page shows outstanding reservations and provides a guarded release action. Its usage explorer filters by user, key, provider, model and UTC date, supports paging, and exports the loaded rows to CSV. Cost totals in the explorer apply only to loaded billed rows; test runs are shown but not billed. The Overview warns when available credits are below $1 or a key has used at least 80% of a budget. Browser alerts can be enabled on the Overview page; they require browser permission and the page to be open. The overview refreshes these checks every minute.
+
+Reservations remain in the database after an unclean shutdown to avoid silently permitting overspend. An administrator can inspect `GET /admin/reservations`. After verifying the associated request has stopped on every instance and reconciling any upstream charges, release an orphan with `DELETE /admin/reservations/{request_id}`; releasing an active reservation allows overspending. The available credit balance excludes outstanding reservations.
+
 ### Admin API
 
 Bearer admin token. `GET|POST /admin/users`, `POST /admin/users/{id}/topup`, `GET|POST /admin/keys`,
 `PATCH|DELETE /admin/keys/{id}`, `GET /admin/ledger`, `GET /admin/usage/daily`, `GET|POST|PUT|DELETE /admin/providers…`.
-Interactive reference at `/docs`.
+Interactive reference at `/docs`. New ledger rows include duration, failure code where available, and the resolved model and rates used for estimated charges; historical rows may not contain these details.
+
+### Routing and estimates
+
+A provider can specify `extra.fallback_model` (also editable on the Providers page) as a `provider/model` ID. The fallback is selected only before work starts when the primary provider is disabled, its CLI binary is absent, or its direct API key is missing. Both requested and fallback models must be allowed by the key. There is no retry after a CLI or upstream request starts, since it might already have incurred charges. Responses identify the selected model and include `X-Proxy-Model`; a fallback also includes `X-Proxy-Requested-Model`.
+
+The Playground can estimate cost using approximate text token counts and an output-token assumption. The estimate excludes image tokens and CLI prompt overhead and is not a spending guarantee. `GET /v1/estimate` accepts `model`, `input_tokens`, and `output_tokens` and returns the rates and estimate for a proxy key.
 
 ## Raw vs agent mode
 
@@ -262,6 +319,9 @@ Skipping permission prompts is a separate, explicit opt-in per provider and is n
   localhost by default.
 - Billing: Claude Code reports `total_cost_usd` (used as is). The other CLIs report tokens only, so cost is
   *estimated* from `app/pricing.py` and flagged `estimated` in the ledger. Check that table against current prices.
+  Direct API estimates use the resolved model ID. For aliases or prices not covered by the table, set provider
+  `extra.pricing_rates` to a map such as `{"actual-model-id": [3.0, 15.0]}` (input and output USD per million tokens).
+  CLI aliases such as `default` cannot identify the selected model automatically; configure their rates explicitly. The Providers page offers a pricing editor; it saves with the rest of the provider settings.
 
 Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 

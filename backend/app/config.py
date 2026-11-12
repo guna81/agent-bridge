@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # policy
     single_user_personal_use: bool = False  # gates oauth_cli auth mode
     debug_log_prompts: bool = False
-    default_max_budget_usd: float = 0.50  # per-request hard cap handed to the CLI
+    default_max_budget_usd: float = 0.50  # reservation limit; Claude CLI also receives it as a per-run budget
 
     # "local" = in-process semaphores + rate limiter (single instance).
     # "redis" = shared across instances; needs PROXY_REDIS_URL and the `redis` package.

@@ -89,3 +89,21 @@ async def test_direct_backend_through_the_api(live, wrappers):
         assert r.choices[0].message.content == "direct!" and r.usage.completion_tokens == 2
     finally:
         LIVE_APP.state.service.direct_transport = None
+
+
+async def test_images_remain_in_their_original_turn_for_direct_backends():
+    from app.adapters.base import Image
+    seen = []
+    image = Image("image/png", b"example")
+    req = NormalizedRequest(model="sonnet", system="", turns=[("user", "first"), ("assistant", "answer"), ("user", "follow up")],
+                            images=[image], images_by_turn={0: [image]})
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, content=b"")
+    for kind in ("claude", "gemini"):
+        _ = [event async for event in stream_direct(kind, req, api_key="k", system_default="", extra={}, timeout=5,
+                                                     transport=httpx.MockTransport(handler))]
+    assert seen[0]["messages"][0]["content"][0]["type"] == "image"
+    assert seen[0]["messages"][2]["content"] == "follow up"
+    assert "inlineData" in seen[1]["contents"][0]["parts"][0]
+    assert all("inlineData" not in part for part in seen[1]["contents"][2]["parts"])

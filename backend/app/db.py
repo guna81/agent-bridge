@@ -45,8 +45,8 @@ def init_engine(url: str | None = None):
 
 # Columns added after 0.1.0. create_all() never alters an existing table, so add what is missing.
 _ADDED_COLUMNS = {
-    "api_keys": {"budget_usd": "FLOAT", "expires_at": "TIMESTAMP", "allowed_models": "JSON"},
-    "ledger": {"key_id": "INTEGER"},
+    "api_keys": {"budget_usd": "FLOAT", "expires_at": "TIMESTAMP", "allowed_models": "JSON", "daily_budget_usd": "FLOAT", "monthly_budget_usd": "FLOAT"},
+    "ledger": {"key_id": "INTEGER", "duration_ms": "INTEGER", "error_code": "VARCHAR(64)", "pricing_model": "VARCHAR(128)", "input_rate": "FLOAT", "output_rate": "FLOAT"},
 }
 
 

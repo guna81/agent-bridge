@@ -18,16 +18,32 @@ from ..adapters.claude import DEFAULT_RAW_PROMPT
 ANTHROPIC_MODELS = {"sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5", "haiku": "claude-haiku-5-5"}
 
 
-def _merge_turns(turns: list[tuple[str, str]], assistant_role: str) -> list[dict]:
-    """Providers want strictly alternating roles starting with user; merge neighbours."""
+def _merge_turns(req: NormalizedRequest, assistant_role: str) -> list[dict]:
+    """Merge neighbouring roles while retaining each turn's image associations."""
     out: list[dict] = []
-    for role, text in turns:
+    images_by_turn = req.images_by_turn
+    if req.images and not images_by_turn:
+        last_user = next((i for i in range(len(req.turns) - 1, -1, -1) if req.turns[i][0] == "user"), -1)
+        images_by_turn = {last_user: req.images}
+    for index, (role, text) in enumerate(req.turns):
         r = assistant_role if role == "assistant" else "user"
+        parts = [("image", image) for image in images_by_turn.get(index, [])] + [("text", text)]
         if out and out[-1]["_r"] == r:
-            out[-1]["_t"] += "\n\n" + text
+            out[-1]["_parts"].extend(parts)
         else:
-            out.append({"_r": r, "_t": text})
+            out.append({"_r": r, "_parts": parts})
     return out
+
+
+def _anthropic_content(parts: list[tuple[str, object]]) -> str | list[dict]:
+    if all(kind == "text" for kind, _ in parts):
+        return "\n\n".join(str(value) for _, value in parts)
+    return [
+        ({"type": "text", "text": value} if kind == "text" else
+         {"type": "image", "source": {"type": "base64", "media_type": value.media_type,
+                                        "data": base64.b64encode(value.data).decode()}})
+        for kind, value in parts if kind != "text" or value
+    ]
 
 
 async def stream_direct(kind: str, req: NormalizedRequest, *, api_key: str, system_default: str, extra: dict,
@@ -56,16 +72,9 @@ async def _anthropic(client, req, api_key, system, extra, mm):  # noqa: ANN001
         "max_tokens": req.max_tokens or 4096,
         "stream": True,
         "system": system,
-        "messages": [{"role": m["_r"], "content": m["_t"]} for m in _merge_turns(req.turns, "assistant")],
+        "messages": [{"role": m["_r"], "content": _anthropic_content(m["_parts"])}
+                     for m in _merge_turns(req, "assistant")],
     }
-    if req.images:  # attach to the final user turn
-        last = next((m for m in reversed(body["messages"]) if m["role"] == "user"), None)
-        if last is not None:
-            last["content"] = [
-                *({"type": "image", "source": {"type": "base64", "media_type": i.media_type, "data": base64.b64encode(i.data).decode()}}
-                  for i in req.images),
-                {"type": "text", "text": last["content"]},
-            ]  # fmt: skip
     if req.temperature is not None:
         body["temperature"] = req.temperature
     headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
@@ -104,15 +113,12 @@ async def _gemini(client, req, api_key, system, extra, mm):  # noqa: ANN001
     model = mm.get(req.model) or req.model.removesuffix("-high").removesuffix("-medium").removesuffix("-low")
     body: dict = {
         "systemInstruction": {"parts": [{"text": system}]},
-        "contents": [{"role": m["_r"], "parts": [{"text": m["_t"]}]} for m in _merge_turns(req.turns, "model")],
+        "contents": [{"role": m["_r"], "parts": [
+            ({"text": value} if kind == "text" else
+             {"inlineData": {"mimeType": value.media_type, "data": base64.b64encode(value.data).decode()}})
+            for kind, value in m["_parts"] if kind != "text" or value
+        ]} for m in _merge_turns(req, "model")],
     }
-    if req.images:
-        last = next((c for c in reversed(body["contents"]) if c["role"] == "user"), None)
-        if last is not None:
-            last["parts"] = [
-                *({"inlineData": {"mimeType": i.media_type, "data": base64.b64encode(i.data).decode()}} for i in req.images),
-                *last["parts"],
-            ]
     gc = {}
     if req.max_tokens:
         gc["maxOutputTokens"] = req.max_tokens
