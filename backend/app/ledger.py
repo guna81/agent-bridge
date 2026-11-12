@@ -100,3 +100,80 @@ def daily_usage(days: int = 14) -> list[dict]:
             d["cost_usd"] += cost
             d["by_provider"][provider] = d["by_provider"].get(provider, 0.0) + cost
     return list(out.values())
+
+
+def provider_usage_stats() -> dict:
+    """Returns today, 7-day, and lifetime usage broken down by provider, plus credit totals."""
+    today = utcnow().date()
+    start_today = dt.datetime.combine(today, dt.time.min, tzinfo=dt.timezone.utc)
+    start_7d = start_today - dt.timedelta(days=6)
+
+    providers_stats: dict[str, dict] = {}
+    totals = {
+        "today_cost_usd": 0.0,
+        "today_requests": 0,
+        "seven_days_cost_usd": 0.0,
+        "seven_days_requests": 0,
+        "lifetime_cost_usd": 0.0,
+        "lifetime_requests": 0,
+    }
+
+    with session_scope() as s:
+        lifetime_q = select(
+            Ledger.provider,
+            func.count(Ledger.id),
+            func.coalesce(func.sum(Ledger.cost_usd), 0.0),
+            func.coalesce(func.sum(Ledger.input_tokens), 0),
+            func.coalesce(func.sum(Ledger.output_tokens), 0),
+        ).where(Ledger.user_id.is_not(None)).group_by(Ledger.provider)
+
+        for prov, reqs, cost, tin, tout in s.execute(lifetime_q):
+            providers_stats[prov] = {
+                "lifetime_cost_usd": float(cost),
+                "lifetime_requests": int(reqs),
+                "lifetime_input_tokens": int(tin),
+                "lifetime_output_tokens": int(tout),
+                "today_cost_usd": 0.0,
+                "today_requests": 0,
+                "seven_days_cost_usd": 0.0,
+                "seven_days_requests": 0,
+            }
+            totals["lifetime_cost_usd"] += float(cost)
+            totals["lifetime_requests"] += int(reqs)
+
+        q = select(Ledger.created_at, Ledger.provider, Ledger.cost_usd).where(
+            Ledger.created_at >= start_7d, Ledger.user_id.is_not(None)
+        )
+        for created, provider, cost in s.execute(q):
+            c_utc = as_utc(created)
+            if provider not in providers_stats:
+                providers_stats[provider] = {
+                    "lifetime_cost_usd": 0.0,
+                    "lifetime_requests": 0,
+                    "lifetime_input_tokens": 0,
+                    "lifetime_output_tokens": 0,
+                    "today_cost_usd": 0.0,
+                    "today_requests": 0,
+                    "seven_days_cost_usd": 0.0,
+                    "seven_days_requests": 0,
+                }
+            cost_f = float(cost or 0.0)
+            providers_stats[provider]["seven_days_cost_usd"] += cost_f
+            providers_stats[provider]["seven_days_requests"] += 1
+            totals["seven_days_cost_usd"] += cost_f
+            totals["seven_days_requests"] += 1
+
+            if c_utc.date() == today:
+                providers_stats[provider]["today_cost_usd"] += cost_f
+                providers_stats[provider]["today_requests"] += 1
+                totals["today_cost_usd"] += cost_f
+                totals["today_requests"] += 1
+
+        total_credits = float(s.scalar(select(func.coalesce(func.sum(User.credits_usd), 0.0))) or 0.0)
+
+    return {
+        "by_provider": providers_stats,
+        "totals": totals,
+        "credits_remaining_usd": total_credits,
+    }
+

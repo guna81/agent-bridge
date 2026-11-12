@@ -95,6 +95,62 @@ async def get_admin_settings(request: Request):
     }
 
 
+@router.get("/status-bar/config")
+async def get_status_bar_config():
+    from ..status_bar_config import load_status_bar_config
+    return load_status_bar_config().model_dump()
+
+
+@router.post("/status-bar/config")
+async def update_status_bar_config(body: dict):
+    from ..status_bar_config import StatusBarConfig, save_status_bar_config
+    try:
+        new_cfg = StatusBarConfig.model_validate(body)
+    except Exception as e:
+        raise ProxyError(400, f"Invalid configuration: {e}", code="invalid_config")
+    save_status_bar_config(new_cfg)
+    return new_cfg.model_dump()
+
+
+@router.get("/status-bar")
+async def get_status_bar_data(request: Request):
+    from ..rate_limits_reader import get_all_cli_rate_limits
+    from ..status_bar_config import load_status_bar_config
+
+    s = get_settings()
+    stats = ledger.provider_usage_stats()
+    cli_limits = get_all_cli_rate_limits()
+    cfg = load_status_bar_config()
+    with session_scope() as sess:
+        providers = list(sess.scalars(select(Provider).order_by(Provider.id)))
+        provider_list = []
+        for p in providers:
+            p_stat = stats["by_provider"].get(p.name, {
+                "lifetime_cost_usd": 0.0, "lifetime_requests": 0,
+                "lifetime_input_tokens": 0, "lifetime_output_tokens": 0,
+                "today_cost_usd": 0.0, "today_requests": 0,
+                "seven_days_cost_usd": 0.0, "seven_days_requests": 0,
+            })
+            provider_list.append({
+                "name": p.name,
+                "kind": p.kind,
+                "enabled": p.enabled,
+                "max_budget_usd": p.max_budget_usd,
+                **p_stat,
+            })
+
+    return {
+        "online": True,
+        "port": s.port,
+        "queue": request.app.state.service.queue.stats(),
+        "providers": provider_list,
+        "totals": stats["totals"],
+        "credits_remaining_usd": stats["credits_remaining_usd"],
+        "rate_limits": cli_limits,
+        "config": cfg.model_dump(),
+    }
+
+
 @router.get("/providers")
 async def list_providers():
     with session_scope() as s:

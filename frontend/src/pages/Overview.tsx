@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { admin, AdminSettings, ago, compact, DayUsage, fullTime, LedgerRow, money, num, Provider, Status, UserRow } from "../api";
+import { admin, AdminSettings, ago, compact, DayUsage, fullTime, LedgerRow, money, num, Provider, Status, StatusBarData, UserRow } from "../api";
 import type { Tab } from "../App";
 import UsageChart from "../components/UsageChart";
+import CliRateLimitsCard from "../components/CliRateLimitsCard";
+import StatusBarConfigModal from "../components/StatusBarConfigModal";
 import { Empty, ErrorNote, Pill, Stat } from "../components/ui";
 
 const RANGES = [7, 14, 30];
@@ -13,20 +15,24 @@ export default function Overview({ settings, go }: { settings: AdminSettings; go
   const [providers, setProviders] = useState<Provider[]>([]);
   const [status, setStatus] = useState<Record<string, Status>>({});
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
+  const [statusBarData, setStatusBarData] = useState<StatusBarData | null>(null);
+  const [configOpen, setConfigOpen] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [d, u, p, l] = await Promise.all([
+      const [d, u, p, l, sb] = await Promise.all([
         admin<DayUsage[]>("GET", `/usage/daily?days=${range}`),
         admin<UserRow[]>("GET", "/users"),
         admin<Provider[]>("GET", "/providers"),
         admin<LedgerRow[]>("GET", "/ledger?limit=8"),
+        admin<StatusBarData>("GET", "/status-bar"),
       ]);
       setDays(d);
       setUsers(u);
       setProviders(p);
       setLedger(l);
+      setStatusBarData(sb);
       setError("");
       for (const x of p.filter((x) => x.enabled))
         admin<Status>("GET", `/providers/${x.name}/status`)
@@ -37,6 +43,16 @@ export default function Overview({ settings, go }: { settings: AdminSettings; go
     }
   }, [range]);
   useEffect(() => void load(), [load]);
+
+  // Periodic polling for real-time CLI rate limits and status bar
+  useEffect(() => {
+    const t = setInterval(() => {
+      admin<StatusBarData>("GET", "/status-bar")
+        .then(setStatusBarData)
+        .catch(() => {});
+    }, 4000);
+    return () => clearInterval(t);
+  }, []);
 
   const today = days[days.length - 1];
   const period = days.reduce((a, d) => ({ cost: a.cost + d.cost_usd, req: a.req + d.requests, tok: a.tok + d.input_tokens + d.output_tokens }), { cost: 0, req: 0, tok: 0 });
@@ -63,6 +79,24 @@ export default function Overview({ settings, go }: { settings: AdminSettings; go
         <Stat label="Credits remaining" value={money(credits)} sub={`across ${users.length} user${users.length === 1 ? "" : "s"}`} />
         <Stat label="Running now" value={`${settings.queue.running} / ${settings.queue.max_concurrency}`} sub={`${settings.queue.waiting} queued`} />
       </div>
+
+      <CliRateLimitsCard
+        rateLimits={statusBarData?.rate_limits}
+        onOpenConfig={() => setConfigOpen(true)}
+        loading={!statusBarData}
+      />
+
+      {configOpen && statusBarData && (
+        <StatusBarConfigModal
+          config={statusBarData.config}
+          onSave={async (newCfg) => {
+            await admin("POST", "/status-bar/config", newCfg);
+            const updated = await admin<StatusBarData>("GET", "/status-bar");
+            setStatusBarData(updated);
+          }}
+          onClose={() => setConfigOpen(false)}
+        />
+      )}
 
       <section className="card">
         <div className="card-head">

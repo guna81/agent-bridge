@@ -19,4 +19,6 @@ __pycache__/
 .pytest_cache/
 frontend/node_modules/
 frontend/dist/
+menubar/LLMGatewayBar
+menubar/LLMGatewayBar.app/
 .DS_Store

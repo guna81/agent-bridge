@@ -505,3 +505,59 @@ def test_redis_rate_limiter():
     assert e.value.status == 429 and int(e.value.headers["Retry-After"]) >= 1
     two.check(8)  # other keys are unaffected
     RedisRateLimiter("", 0, client=r, prefix=prefix).check(7)  # 0 = disabled
+
+
+def test_status_bar_endpoint_and_stats(live):
+    from app import ledger
+
+    # Verify provider_usage_stats helper
+    stats = ledger.provider_usage_stats()
+    assert "by_provider" in stats
+    assert "totals" in stats
+    assert "credits_remaining_usd" in stats
+
+    # Verify HTTP endpoint via live.admin helper
+    data = live.admin("GET", "/status-bar")
+    assert data["online"] is True
+    assert "providers" in data
+    assert "queue" in data
+    assert "totals" in data
+    assert "credits_remaining_usd" in data
+    assert "rate_limits" in data
+    assert "config" in data
+    assert isinstance(data["providers"], list)
+
+
+def test_status_bar_config_and_antigravity(live):
+    from app.rate_limits_reader import get_all_cli_rate_limits, get_antigravity_rate_limits
+
+    # Test Antigravity reader helper
+    agy_limits = get_antigravity_rate_limits()
+    assert agy_limits is not None
+    assert "five_hour" in agy_limits
+    assert "weekly" in agy_limits
+    assert "plan_name" in agy_limits
+
+    all_limits = get_all_cli_rate_limits()
+    assert "antigravity" in all_limits
+
+    # Test GET /status-bar/config
+    cfg = live.admin("GET", "/status-bar/config")
+    assert "enabled_providers" in cfg
+    assert "pinned_metric" in cfg
+
+    # Test POST /status-bar/config
+    updated = live.admin("POST", "/status-bar/config", json={
+        "enabled_providers": {"codex": True, "claude": True, "antigravity": True},
+        "pinned_metric": "antigravity_gemini_5h",
+        "refresh_interval_seconds": 4,
+        "antigravity_ls_address": "",
+        "antigravity_csrf_token": "",
+        "codex_sqlite_path": "",
+        "claude_json_path": "",
+    })
+    assert updated["pinned_metric"] == "antigravity_gemini_5h"
+    assert updated["refresh_interval_seconds"] == 4
+
+
+

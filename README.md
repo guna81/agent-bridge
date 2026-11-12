@@ -102,8 +102,16 @@ To keep the gateway continuously running in the background across reboots and cr
   ./manage-service.sh logs       # follow live logs
   ./manage-service.sh restart    # restart daemon
   ./manage-service.sh stop       # stop service
+  ./manage-service.sh menubar    # launch native macOS Menu Bar app with live CLI progress bar
   ./manage-service.sh uninstall  # remove service configuration
   ```
+- **macOS Status Bar Companion**:
+  ```bash
+  ./manage-service.sh menubar start   # starts native Swift menu bar progress bar app
+  ./manage-service.sh menubar status  # check menu bar app state
+  ./manage-service.sh menubar stop    # stop menu bar app
+  ```
+  See the **[macOS Status Bar App Guide](docs/mac-status-bar.md)** for details on switching CLIs, budget targets, and display formats.
 - **Windows (PowerShell)**:
   ```powershell
   powershell -ExecutionPolicy Bypass -File .\manage-service.ps1 install

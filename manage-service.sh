@@ -190,7 +190,7 @@ EOF
 }
 
 macos_is_loaded() {
-    launchctl list 2>/dev/null | grep -q "$MACOS_LABEL"
+    launchctl list 2>/dev/null | awk '{print $3}' | grep -Fxq "$MACOS_LABEL"
 }
 
 macos_install() {
@@ -243,7 +243,7 @@ macos_status() {
     echo "=== Service Status (macOS launchd: $MACOS_LABEL) ==="
     if macos_is_loaded; then
         local pid
-        pid=$(launchctl list | grep "$MACOS_LABEL" | awk '{print $1}')
+        pid=$(launchctl list | awk -v lbl="$MACOS_LABEL" '$3 == lbl {print $1}')
         echo "LaunchAgent: LOADED"
         if [ "$pid" != "-" ] && [ -n "$pid" ]; then
             echo "Launchd PID: $pid"
@@ -407,6 +407,57 @@ show_logs() {
     tail -n 50 -f "$LOG_FILE" "$ERR_LOG_FILE"
 }
 
+manage_menubar() {
+    local action="${2:-start}"
+    local MENUBAR_BIN="$REPO_DIR/menubar/LLMGatewayBar"
+    local APP_PATH="$REPO_DIR/menubar/LLMGatewayBar.app"
+
+    case "$action" in
+        build)
+            bash "$REPO_DIR/menubar/build.sh"
+            ;;
+        start)
+            if [ ! -f "$MENUBAR_BIN" ]; then
+                echo "Building menu bar app first..."
+                bash "$REPO_DIR/menubar/build.sh"
+            fi
+            if pgrep -x "LLMGatewayBar" >/dev/null 2>&1; then
+                echo "Menu Bar app is already running."
+            else
+                echo "Starting LLM Gateway Menu Bar app..."
+                open -a "$APP_PATH" 2>/dev/null || ("$MENUBAR_BIN" >/dev/null 2>&1 &)
+                sleep 0.5
+                if pgrep -x "LLMGatewayBar" >/dev/null 2>&1; then
+                    echo "✓ LLM Gateway Menu Bar app is now active in your macOS status bar."
+                else
+                    echo "Could not start menu bar app."
+                fi
+            fi
+            ;;
+        stop)
+            echo "Stopping LLM Gateway Menu Bar app..."
+            pkill -x "LLMGatewayBar" 2>/dev/null || true
+            echo "Stopped."
+            ;;
+        restart)
+            manage_menubar menubar stop
+            sleep 0.5
+            manage_menubar menubar start
+            ;;
+        status)
+            if pgrep -x "LLMGatewayBar" >/dev/null 2>&1; then
+                local pid=$(pgrep -x "LLMGatewayBar" | head -n1)
+                echo "Menu Bar App: RUNNING (PID: $pid)"
+            else
+                echo "Menu Bar App: NOT RUNNING"
+            fi
+            ;;
+        *)
+            echo "Usage: $0 menubar {start|stop|restart|status|build}"
+            ;;
+    esac
+}
+
 # ==============================================================================
 # Dispatcher
 # ==============================================================================
@@ -460,6 +511,13 @@ case "$1" in
     logs)
         show_logs
         ;;
+    menubar)
+        if [ "$PLATFORM" != "macos" ]; then
+            echo "Error: Native menu bar app is currently supported on macOS."
+            exit 1
+        fi
+        manage_menubar "$@"
+        ;;
     uninstall)
         if [ "$PLATFORM" = "macos" ]; then
             macos_uninstall
@@ -471,7 +529,7 @@ case "$1" in
         echo "LLM CLI Gateway (ai-credit-proxy) - Service Manager"
         echo "Detected Platform: $PLATFORM"
         echo ""
-        echo "Usage: $0 {install|start|stop|restart|status|logs|uninstall}"
+        echo "Usage: $0 {install|start|stop|restart|status|logs|menubar|uninstall}"
         echo ""
         echo "Commands:"
         echo "  install    Install as a background daemon (LaunchAgent on macOS, systemd on Linux) and start"
@@ -480,6 +538,7 @@ case "$1" in
         echo "  restart    Restart the service"
         echo "  status     Check if service and port $PORT are active and healthy"
         echo "  logs       Stream live server logs"
+        echo "  menubar    Manage macOS Status Bar / Menu Bar app (start|stop|restart|status|build)"
         echo "  uninstall  Stop service and remove service definition"
         exit 1
         ;;

@@ -81,6 +81,78 @@ export interface DayUsage {
   by_provider: Record<string, number>;
 }
 
+export interface LimitWindow {
+  label: string;
+  used_percent: number;
+  left_percent: number;
+  reset_at: number | null;
+  reset_str: string | null;
+  is_exhausted: boolean;
+  description?: string | null;
+}
+
+export interface AntigravityRateLimits {
+  five_hour: LimitWindow;
+  weekly: LimitWindow;
+  claude_gpt_5h?: LimitWindow;
+  claude_gpt_weekly?: LimitWindow;
+  plan_name: string;
+  tier_id: string;
+  updated_at?: number | null;
+}
+
+export interface CodexRateLimits {
+  five_hour: LimitWindow;
+  weekly: LimitWindow;
+  updated_at?: number | null;
+}
+
+export interface ClaudeScopedLimit {
+  label: string;
+  model_name: string;
+  used_percent: number;
+  left_percent: number;
+  reset_str: string | null;
+  is_exhausted: boolean;
+}
+
+export interface ClaudeRateLimits {
+  five_hour: LimitWindow;
+  weekly: LimitWindow;
+  weekly_scoped: ClaudeScopedLimit | null;
+}
+
+export interface AllRateLimits {
+  codex?: CodexRateLimits | null;
+  claude?: ClaudeRateLimits | null;
+  antigravity?: AntigravityRateLimits | null;
+}
+
+export interface StatusBarConfig {
+  enabled_providers: {
+    codex: boolean;
+    claude: boolean;
+    antigravity: boolean;
+  };
+  pinned_metric: string;
+  refresh_interval_seconds: number;
+  antigravity_ls_address: string;
+  antigravity_csrf_token: string;
+  codex_sqlite_path: string;
+  claude_json_path: string;
+}
+
+export interface StatusBarData {
+  online: boolean;
+  port: number;
+  queue: { running: number; waiting: number; max_concurrency: number };
+  providers: Array<Record<string, unknown>>;
+  totals: Record<string, unknown>;
+  credits_remaining_usd: number;
+  rate_limits: AllRateLimits;
+  config: StatusBarConfig;
+}
+
 export interface AdminSettings {
   single_user_personal_use: boolean;
   queue: { running: number; waiting: number; max_concurrency: number };

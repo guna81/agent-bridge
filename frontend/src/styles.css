@@ -261,3 +261,67 @@ pre { margin: 0; background: var(--code-bg); color: var(--code-text); padding: 1
   .chat-bar { grid-template-columns: 1fr; }
   .bubble { max-width: 92%; }
 }
+
+/* ---- CLI Agent Limits & Gauges ----------------------------------------------------------------- */
+.cli-limits-card { margin-bottom: 20px; }
+.title-with-pill { display: flex; align-items: center; gap: 10px; }
+.live-indicator-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 99px; background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; animation: pulse 1.8s infinite; }
+.small-btn { padding: 5px 11px; font-size: 12px; height: auto; }
+
+.cli-agents-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
+.cli-provider-box { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.box-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.provider-info { display: flex; flex-direction: column; gap: 2px; }
+.provider-sub { font-size: 11.5px; color: var(--muted); }
+
+.agent-badge { font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; display: inline-block; width: fit-content; }
+.agy-badge { background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); }
+.codex-badge { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+.claude-badge { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+.status-tag { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+.status-tag.ok { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+.status-tag.exhausted { color: #ef4444; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25); }
+
+.gauges-list { display: flex; flex-direction: column; gap: 10px; }
+.limit-gauge-item { display: flex; flex-direction: column; gap: 4px; }
+.gauge-header { display: flex; justify-content: space-between; font-size: 12px; }
+.gauge-label { font-weight: 500; color: var(--text); }
+.gauge-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.gauge-value.tone-green { color: #10b981; }
+.gauge-value.tone-amber { color: #f59e0b; }
+.gauge-value.tone-red { color: #ef4444; }
+
+.gauge-track { height: 7px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; position: relative; }
+.gauge-fill { height: 100%; border-radius: 99px; transition: width 0.3s ease; }
+.gauge-fill.tone-green { background: #10b981; }
+.gauge-fill.tone-amber { background: #f59e0b; }
+.gauge-fill.tone-red { background: #ef4444; }
+
+.gauge-footer { display: flex; justify-content: space-between; align-items: center; }
+.reset-hint { font-variant-numeric: tabular-nums; }
+.desc-hint { cursor: help; opacity: 0.7; }
+.mini-sub-limit { padding-top: 4px; border-top: 1px dashed var(--line); }
+
+/* ---- Modal Styles ------------------------------------------------------------------------------ */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-card { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; width: 100%; max-width: 520px; padding: 22px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3); display: flex; flex-direction: column; gap: 18px; }
+.modal-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.modal-header h3 { margin: 0 0 4px 0; font-size: 17px; }
+.close-btn { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--muted); padding: 0 4px; line-height: 1; }
+.close-btn:hover { color: var(--text); }
+
+.group-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.checkbox-row { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 6px; }
+.checkbox-label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.select-input, .text-input { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--text); font-size: 13px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.xsmall { font-size: 11px; }
+
+.advanced-paths { margin-top: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface-2); }
+.advanced-paths summary { cursor: pointer; font-weight: 500; outline: none; }
+.details-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.details-body .field { display: flex; flex-direction: column; gap: 4px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
