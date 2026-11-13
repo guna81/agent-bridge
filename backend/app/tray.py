@@ -12,6 +12,12 @@ from PIL import Image, ImageDraw
 import pystray
 
 NAMES = {"codex": "Codex", "claude": "Claude Code", "antigravity": "Antigravity"}
+INTERVAL_LABELS = {
+    2: "2 seconds (Accurate, consumes battery)",
+    5: "5 seconds (Balanced)",
+    10: "10 seconds (Battery saver)",
+    30: "30 seconds (Maximum battery saver)",
+}
 BASE = f"http://127.0.0.1:{int(os.environ.get('PROXY_PORT', '43187'))}"
 TOKEN = os.environ['PROXY_ADMIN_TOKEN']
 
@@ -138,7 +144,7 @@ class Tray:
         def interval_action(seconds):
             return lambda icon, item: self.select_interval(seconds)
 
-        interval_choices = [pystray.MenuItem(f'{seconds} seconds',
+        interval_choices = [pystray.MenuItem(INTERVAL_LABELS.get(seconds, f'{seconds} seconds'),
                             interval_action(seconds),
                             checked=lambda item, value=seconds: self.data.get('config', {}).get('refresh_interval_seconds', 5) == value,
                             enabled=bool(self.data)) for seconds in (2, 5, 10, 30)]

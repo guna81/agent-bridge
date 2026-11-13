@@ -38,6 +38,24 @@ def test_selection_uses_shared_config(tray, monkeypatch):
     assert instance.menu() is not None
 
 
+def test_refresh_interval_menu_and_selection(tray, monkeypatch):
+    instance = tray.Tray()
+    instance.data = {'config': {'refresh_interval_seconds': 5, 'selected_clis': ['antigravity']}, 'rate_limits': {}}
+    sent = []
+    monkeypatch.setattr(tray, 'request', lambda path, body: sent.append((path, body)))
+    instance.select_interval(2)
+    assert sent == [('/admin/status-bar/config', {'refresh_interval_seconds': 2})]
+    assert instance.refresh_event.is_set()
+
+    menu = instance.menu()
+    interval_item = next(item for item in menu.items if getattr(item, 'text', '') == 'Refresh interval')
+    sub_texts = [sub.text for sub in interval_item.submenu.items]
+    assert any('2 seconds (Accurate, consumes battery)' in text for text in sub_texts)
+    assert any('5 seconds (Balanced)' in text for text in sub_texts)
+    assert any('10 seconds (Battery saver)' in text for text in sub_texts)
+    assert any('30 seconds (Maximum battery saver)' in text for text in sub_texts)
+
+
 def test_compact_display_and_refresh_settings(tray):
     compact = tray.usage_icon({'config': {'display_mode': 'compact'}})
     bars = tray.usage_icon({'config': {'display_mode': 'bars', 'selected_clis': ['codex']}})
