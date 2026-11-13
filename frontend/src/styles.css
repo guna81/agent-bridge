@@ -389,8 +389,9 @@ pre { margin: 0; background: var(--code-bg); color: var(--code-text); padding: 1
 .update-notice p { margin-top: 3px; color: var(--text-2); }
 .update-notice a { font-weight: 600; }
 
-.sidebar-version { padding: 0 2px; color: var(--muted); font-size: 12px; }
-.sidebar-version span { color: var(--accent); font-weight: 600; }
+.sidebar-version { display: flex; flex-direction: column; gap: 2px; padding: 0 2px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.sidebar-version a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.sidebar-version a:hover { text-decoration: underline; }
 
 .indicator-setting { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px; margin: 16px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
 .indicator-setting p { margin-top: 4px; }
