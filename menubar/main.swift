@@ -516,8 +516,14 @@ class StatusBarController: NSObject {
         menu.addItem(selectItem)
         let intervals = NSMenu()
         intervals.autoenablesItems = false
-        for seconds in [2, 5, 10, 30] {
-            let item = NSMenuItem(title: "\(seconds) seconds", action: #selector(changeRefreshIntervalAction(_:)), keyEquivalent: "")
+        let intervalOptions: [(Int, String)] = [
+            (2, "2 seconds (Accurate, consumes battery)"),
+            (5, "5 seconds (Balanced)"),
+            (10, "10 seconds (Battery saver)"),
+            (30, "30 seconds (Maximum battery saver)")
+        ]
+        for (seconds, title) in intervalOptions {
+            let item = NSMenuItem(title: title, action: #selector(changeRefreshIntervalAction(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = seconds
             item.state = Int(pollingInterval) == seconds ? .on : .off

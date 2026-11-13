@@ -2,7 +2,8 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command -v uv >/dev/null || { echo 'Install uv first: https://docs.astral.sh/uv/getting-started/installation/' >&2; exit 1; }
-command -v npm >/dev/null || { echo 'Install Node.js and npm first.' >&2; exit 1; }
+command -v npm >/dev/null && command -v node >/dev/null || { echo 'Install Node.js and npm first.' >&2; exit 1; }
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!((major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22)) process.exit(1)' || { echo 'Node.js 20.19+ or 22.12+ is required (Node 21 is not supported).' >&2; exit 1; }
 (cd "$ROOT_DIR/backend" && uv sync --python 3.12 --inexact)
 (cd "$ROOT_DIR/frontend" && npm ci && npm run build)
 if [[ "$(uname -s)" == Darwin ]]; then

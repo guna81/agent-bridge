@@ -4,6 +4,7 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+from types import SimpleNamespace
 
 
 def test_cli_start_and_stop(tmp_path):
@@ -15,6 +16,8 @@ def test_cli_start_and_stop(tmp_path):
     for key in ('PROXY_DATABASE_URL', 'PROXY_QUEUE_BACKEND', 'PROXY_REDIS_URL'):
         env.pop(key, None)
     env['AGENTBRIDGE_HOME'] = str(tmp_path)
+    # Integration tests must never register or replace the user's login job.
+    env['AGENTBRIDGE_DISABLE_AUTOSTART'] = '1'
     (tmp_path / 'update-check.json').write_text(json.dumps({'checked_at': __import__('time').time(), 'latest': None}))
     # Old API-key-only settings must not keep CLI logins disabled after upgrading.
     (tmp_path / 'config.json').write_text(json.dumps({'personal': False}))
@@ -38,6 +41,93 @@ def test_cli_start_and_stop(tmp_path):
         assert 'Provider API keys and personal CLI logins are available' in restarted.stdout
     finally:
         run('stop')
+
+
+def free_port():
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        return sock.getsockname()[1]
+
+
+def test_running_gateway_repairs_missing_helper_and_autostart(tmp_path, monkeypatch, capsys):
+    from app import autostart, cli
+    info = {'pid': 101, 'identity': 'gateway', 'port': 43210}
+    launcher = tmp_path / 'agentbridge'
+    binary = tmp_path / 'menubar' / 'LLMGatewayBar'
+    binary.parent.mkdir()
+    binary.touch()
+    calls = []
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(cli, 'ROOT', tmp_path)
+    monkeypatch.setattr(cli, 'DATA', tmp_path)
+    monkeypatch.setattr(cli, 'STATE', tmp_path / 'service.json')
+    monkeypatch.setattr(cli, 'CONFIG', tmp_path / 'config.json')
+    monkeypatch.delenv('AGENTBRIDGE_DISABLE_AUTOSTART', raising=False)
+    monkeypatch.setattr(cli, 'state', lambda: info.copy())
+    monkeypatch.setattr(cli, 'credentials', lambda: {'admin_token': 'test-token'})
+    monkeypatch.setattr(cli, 'startup_launcher', lambda: launcher)
+    monkeypatch.setattr(autostart, 'is_registered', lambda data: False)
+    monkeypatch.setattr(autostart, 'register', lambda executable, data: calls.append((executable, data)))
+    monkeypatch.setattr(cli, 'identity', lambda pid: 'helper')
+    monkeypatch.setattr(cli.subprocess, 'Popen', lambda command, **kwargs: (
+        calls.append(command) or SimpleNamespace(pid=202, poll=lambda: None)))
+    monkeypatch.setattr(cli.time, 'sleep', lambda _: None)
+
+    cli.start(SimpleNamespace(port=None, no_tray=False))
+
+    assert [str(binary)] in calls  # No second gateway process is launched.
+    assert (launcher, tmp_path) in calls
+    assert json.loads(cli.STATE.read_text())['tray_pid'] == 202
+    assert 'already running' in capsys.readouterr().out.lower()
+
+
+def test_start_warns_when_installed_launcher_is_invalid(tmp_path, monkeypatch, capsys):
+    from app import cli
+    monkeypatch.setattr(cli, 'DATA', tmp_path)
+    monkeypatch.setattr(cli, 'STATE', tmp_path / 'service.json')
+    monkeypatch.setattr(cli, 'CONFIG', tmp_path / 'config.json')
+    monkeypatch.delenv('AGENTBRIDGE_DISABLE_AUTOSTART', raising=False)
+    monkeypatch.setattr(cli, 'state', lambda: None)
+    monkeypatch.setattr(cli, 'startup_launcher', lambda: None)
+    monkeypatch.setattr(cli, 'credentials', lambda: {'secret_key': 's', 'key_pepper': 'p', 'admin_token': 't'})
+    monkeypatch.setattr(cli, 'healthy', lambda *args: True)
+    monkeypatch.setattr(cli, 'identity', lambda pid: 'gateway')
+    monkeypatch.setattr(cli.subprocess, 'Popen', lambda *args, **kwargs: SimpleNamespace(pid=101, poll=lambda: None))
+
+    cli.start(SimpleNamespace(port=free_port(), no_tray=True))
+
+    output = capsys.readouterr()
+    assert 'launcher' in (output.out + output.err).lower()
+    assert 'autostart' in (output.out + output.err).lower() or 'automatic startup' in (output.out + output.err).lower()
+
+
+def test_macos_helper_early_exit_warns_without_stopping_gateway(tmp_path, monkeypatch, capsys):
+    from app import cli
+    binary = tmp_path / 'menubar' / 'LLMGatewayBar'
+    binary.parent.mkdir()
+    binary.touch()
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(cli, 'ROOT', tmp_path)
+    monkeypatch.setattr(cli, 'DATA', tmp_path)
+    monkeypatch.setattr(cli, 'STATE', tmp_path / 'service.json')
+    monkeypatch.setattr(cli, 'CONFIG', tmp_path / 'config.json')
+    monkeypatch.setenv('AGENTBRIDGE_DISABLE_AUTOSTART', '1')
+    monkeypatch.setattr(cli, 'state', lambda: None)
+    monkeypatch.setattr(cli, 'credentials', lambda: {'secret_key': 's', 'key_pepper': 'p', 'admin_token': 't'})
+    monkeypatch.setattr(cli, 'healthy', lambda *args: True)
+    monkeypatch.setattr(cli, 'identity', lambda pid: 'process-identity')
+    monkeypatch.setattr(cli.time, 'sleep', lambda _: None)
+    processes = iter([SimpleNamespace(pid=101, poll=lambda: None), SimpleNamespace(pid=202, poll=lambda: 1)])
+    monkeypatch.setattr(cli.subprocess, 'Popen', lambda *args, **kwargs: next(processes))
+
+    cli.start(SimpleNamespace(port=free_port(), no_tray=False))
+
+    output = capsys.readouterr()
+    text = (output.out + output.err).lower().replace('status-bar', 'status bar')
+    assert 'status bar' in text and ('unavailable' in text or 'failed' in text)
+    assert 'status bar started' not in text
+    assert json.loads(cli.STATE.read_text())['pid'] == 101
+    assert 'tray_pid' not in json.loads(cli.STATE.read_text())
 
 
 def test_dashboard_opens_with_fragment_and_does_not_print_token(monkeypatch, capsys):

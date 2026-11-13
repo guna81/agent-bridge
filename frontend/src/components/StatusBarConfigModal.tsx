@@ -130,10 +130,11 @@ export default function StatusBarConfigModal({ config, onSave, onClose, inline =
               onChange={(e) => setInterval(Number(e.target.value))}
               className="select-input"
             >
-              <option value={2}>2 seconds</option>
-              <option value={5}>5 seconds</option>
-              <option value={10}>10 seconds</option>
-              <option value={30}>30 seconds</option>
+              {![2, 5, 10, 30].includes(interval) && <option value={interval}>{interval} seconds</option>}
+              <option value={2}>2 seconds (Accurate, consumes battery)</option>
+              <option value={5}>5 seconds (Balanced)</option>
+              <option value={10}>10 seconds (Battery saver)</option>
+              <option value={30}>30 seconds (Maximum battery saver)</option>
             </select>
           </div>
 

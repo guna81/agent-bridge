@@ -188,7 +188,7 @@ export default function App() {
               Sign out
             </button>
           </div>
-          {update && <div className="sidebar-version">AgentBridge v{update.current}{update.available && <span> · Update available</span>}</div>}
+          {update && <div className="sidebar-version"><div>AgentBridge v{update.current}</div>{update.available && <a href={update.release_url} target="_blank" rel="noopener noreferrer">Update available ↗</a>}</div>}
         </div>
       </aside>
       <main className="content">

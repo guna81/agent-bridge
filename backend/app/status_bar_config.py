@@ -39,6 +39,14 @@ class StatusBarConfig(BaseModel):
     claude_json_path: str = ""
 
 
+REFRESH_INTERVAL_LABELS: dict[int, str] = {
+    2: "2 seconds (Accurate, consumes battery)",
+    5: "5 seconds (Balanced)",
+    10: "10 seconds (Battery saver)",
+    30: "30 seconds (Maximum battery saver)",
+}
+
+
 def _config_file_path() -> Path:
     from .config import get_settings
     return get_settings().data_dir / "status_bar_config.json"

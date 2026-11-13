@@ -158,13 +158,16 @@ def autostart_command(action):
     from app import autostart
     config = read_config()
     if action == 'status':
-        print('Automatic startup: ' + ('enabled' if autostart.is_registered(DATA) else 'not registered'))
+        print('Automatic startup: ' + ('enabled' if autostart.is_registered(DATA) else 'not registered or inactive'))
+        failure = autostart.macos_last_failure()
+        if failure is not None:
+            print(f'Last login startup exited with code {failure}; check {DATA / "autostart.log"}.', file=sys.stderr)
         return
     if action == 'enable':
         launcher = startup_launcher()
         if launcher is None:
             raise RuntimeError('Cannot find the installed AgentBridge launcher. Install the CLI first or set AGENTBRIDGE_BIN_DIR.')
-        autostart.register(launcher, DATA)
+        autostart.register(launcher, DATA, enable_disabled=True)
         config['autostart'] = True
         write_config(config)
         print('Automatic startup enabled for your user login.')
@@ -175,11 +178,70 @@ def autostart_command(action):
         print('Automatic startup disabled.')
 
 
-def start(args):
-    if state():
-        print("AgentBridge is already running. Use 'agentbridge status' for details.")
+def ensure_autostart(config):
+    if not config.get('autostart', True) or os.environ.get('AGENTBRIDGE_DISABLE_AUTOSTART') == '1':
         return
+    from app import autostart
+    launcher = startup_launcher()
+    if launcher is None:
+        print("Could not enable automatic startup: installed launcher not found. Install the CLI or set AGENTBRIDGE_BIN_DIR.", file=sys.stderr)
+        return
+    if not autostart.is_registered(DATA):
+        try:
+            autostart.register(launcher, DATA)
+            print("Automatic startup enabled for your user login.")
+        except (OSError, RuntimeError) as exc:
+            print(f"Could not enable automatic startup: {exc}. Run 'agentbridge autostart enable' to retry.", file=sys.stderr)
+
+
+def ensure_tray(info, env):
+    if same_process(info.get('tray_pid'), info.get('tray_identity')):
+        return
+    info.pop('tray_pid', None)
+    info.pop('tray_identity', None)
+    if sys.platform == 'darwin':
+        binary = ROOT / 'menubar' / 'LLMGatewayBar'
+        if not binary.exists():
+            print('Status bar unavailable. Run ./menubar/build.sh to build it.', file=sys.stderr)
+            return
+        log_path = DATA / 'status-bar.log'
+        command = [str(binary)]
+    else:
+        log_path = DATA / 'tray.log'
+        command = child_command('_tray')
+    try:
+        with log_path.open('a') as log:
+            tray = subprocess.Popen(command, env=env, cwd=ROOT if FROZEN or sys.platform == 'darwin' else ROOT / 'backend',
+                                    stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                                    **background_options())
+        time.sleep(1)
+        running = tray.poll() is None
+        tray_identity = identity(tray.pid) if running else None
+        if tray_identity:
+            info.update(tray_pid=tray.pid, tray_identity=tray_identity)
+            STATE.write_text(json.dumps(info))
+            print('Status bar started.' if sys.platform == 'darwin' else 'System tray helper started.')
+            return
+        if running:
+            tray.terminate()  # Do not leave an untracked helper that a later start would duplicate.
+    except OSError as exc:
+        print(f'Could not start status indicator: {exc}.', file=sys.stderr)
+    print(f'Status indicator unavailable. Check {log_path}; the gateway is still running.', file=sys.stderr)
+
+
+def start(args):
     config = read_config()
+    existing = state()
+    if existing:
+        print("AgentBridge is already running. Use 'agentbridge status' for details.")
+        if not args.no_tray:
+            values = credentials()
+            env = os.environ.copy()
+            env.update(PROXY_DATA_DIR=str(DATA), PROXY_HOST='127.0.0.1', PROXY_PORT=str(existing['port']),
+                       PROXY_ADMIN_TOKEN=values['admin_token'])
+            ensure_tray(existing, env)
+        ensure_autostart(config)
+        return
     if args.port is None:
         args.port = config.get('port', DEFAULT_PORT)
     if not isinstance(args.port, int) or not 1 <= args.port <= 65535:
@@ -225,41 +287,9 @@ def start(args):
     write_config(config)
     print(f"Gateway running at http://127.0.0.1:{args.port}")
     print("Provider API keys and personal CLI logins are available.")
-    if sys.platform == "darwin" and not args.no_tray:
-        binary = ROOT / "menubar" / "LLMGatewayBar"
-        if binary.exists():
-            tray_env = env.copy()
-            tray = subprocess.Popen([str(binary)], env=tray_env, cwd=ROOT, stdin=subprocess.DEVNULL,
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-            info.update(tray_pid=tray.pid, tray_identity=identity(tray.pid))
-            STATE.write_text(json.dumps(info))
-            print("Status bar started.")
-        else:
-            print("Status bar unavailable. Run ./menubar/build.sh to build it.")
-    elif not args.no_tray:
-        tray_log = (DATA / "tray.log").open("a")
-        try:
-            tray = subprocess.Popen(child_command("_tray"), env=env, cwd=ROOT if FROZEN else ROOT / "backend",
-                                    stdin=subprocess.DEVNULL, stdout=tray_log, stderr=subprocess.STDOUT,
-                                    **background_options())
-        finally:
-            tray_log.close()
-        time.sleep(1)
-        if tray.poll() is None and identity(tray.pid):
-            info.update(tray_pid=tray.pid, tray_identity=identity(tray.pid))
-            STATE.write_text(json.dumps(info))
-            print("System tray helper started.")
-        else:
-            print(f"System tray unavailable. Check {DATA / 'tray.log'}; the gateway is still running.")
-    if config.get('autostart', True) and os.environ.get('AGENTBRIDGE_DISABLE_AUTOSTART') != '1':
-        from app import autostart
-        launcher = startup_launcher()
-        if launcher is not None and not autostart.is_registered(DATA):
-            try:
-                autostart.register(launcher, DATA)
-                print("Automatic startup enabled for your user login.")
-            except (OSError, RuntimeError) as exc:
-                print(f"Could not enable automatic startup: {exc}. Run 'agentbridge autostart enable' to retry.", file=sys.stderr)
+    if not args.no_tray:
+        ensure_tray(info, env)
+    ensure_autostart(config)
     print("Run 'agentbridge dashboard' to open the dashboard.")
 
 
@@ -414,7 +444,7 @@ Data and credentials are stored in ~/.agentbridge (override with AGENTBRIDGE_HOM
 Documentation: https://github.com/guna81/agent-bridge#readme""",
     )
     from app.updates import VERSION, check_update
-    parser.add_argument("--version", action="version", version=f"AgentBridge {VERSION}")
+    parser.add_argument("--version", action="version", version=f"AgentBridge {VERSION}" + (" (development)" if not FROZEN else ""))
     sub = parser.add_subparsers(dest="command", required=True, title="commands",
                                 metavar="{start,stop,status,dashboard,autostart,update,uninstall}")
     start_parser = sub.add_parser("start", help="start the gateway and status indicator",

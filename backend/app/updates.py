@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
 import time
 import urllib.error
@@ -25,6 +26,11 @@ def version_parts(value: str):
 
 def check_update(data_dir: Path, *, force: bool = False) -> dict:
     """Return status without raising when GitHub or the cache is unavailable."""
+    if not getattr(sys, "frozen", False):
+        # Source checkout versions are not release versions and cannot be updated
+        # using the packaged installer. Comparing them produces misleading notices.
+        return {"current": f"{VERSION} (development)", "latest": None,
+                "available": False, "release_url": RELEASES_URL}
     cache_path = data_dir / "update-check.json"
     now = time.time()
     cached = {}
