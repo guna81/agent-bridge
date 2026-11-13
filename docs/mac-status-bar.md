@@ -16,7 +16,7 @@ The indicator is enabled by default. On **Status indicator**, you can turn it of
 
 Click the indicator for details, provider selection, dashboard access, and refresh. A missing value is shown as unavailable; it does not mean the limit is zero. The Windows and Linux tray uses compact graphics, with percentages in its menu. An always-visible desktop widget is not currently available.
 
-The Linux tray requires a supported graphical X11 desktop with a system tray. Windows and Linux packages pass CI smoke tests, but interactive desktop and provider login behavior still needs real-device testing. If a tray helper fails to start, the gateway can continue running; check `~/.agentbridge/tray.log`.
+The Linux tray requires a supported graphical X11 desktop with a system tray. Windows and Linux packages pass CI smoke tests, but interactive desktop and provider login behavior still needs real-device testing. If a helper fails to start, the gateway can continue running; check `~/.agentbridge/status-bar.log` on macOS or `~/.agentbridge/tray.log` on Windows and Linux. Running `agentbridge start` again will restart a missing helper without restarting the gateway.
 
 ## Source-based macOS helper
 

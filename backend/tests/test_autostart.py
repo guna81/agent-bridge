@@ -39,9 +39,14 @@ def test_macos_launch_agent_starts_installed_launcher(tmp_path, monkeypatch):
     launcher.touch()
     data = tmp_path / 'app data'
     calls = []
+    loaded = False
     def launchctl(command, **kwargs):
+        nonlocal loaded
         calls.append(command)
-        return SimpleNamespace(returncode=1 if command[1] == 'print' else 0, stderr='')
+        if command[1] == 'bootstrap':
+            loaded = True
+        return SimpleNamespace(returncode=1 if command[1] == 'print' and not loaded else 0,
+                               stdout='', stderr='')
     monkeypatch.setattr(autostart.subprocess, 'run', launchctl)
     autostart.register(launcher, data)
     path = tmp_path / 'Library/LaunchAgents/com.agentbridge.autostart.plist'
@@ -56,13 +61,43 @@ def test_macos_launch_agent_starts_installed_launcher(tmp_path, monkeypatch):
     assert any(c[1] == 'bootout' for c in calls)
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='Unix LaunchAgent paths')
+@pytest.mark.parametrize(('loaded', 'disabled', 'expected'), [
+    (True, False, True),
+    (False, False, False),
+    (True, True, False),
+])
+def test_macos_registration_requires_loaded_and_enabled_job(tmp_path, monkeypatch, loaded, disabled, expected):
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    data = tmp_path / 'app data'
+    path = tmp_path / 'Library/LaunchAgents' / f'{autostart.LABEL}.plist'
+    path.parent.mkdir(parents=True)
+    launcher = tmp_path / 'agentbridge'
+    launcher.touch()
+    with path.open('wb') as stream:
+        plistlib.dump({'Label': autostart.LABEL, 'ProgramArguments': [str(launcher), 'start'],
+                       'RunAtLoad': True, 'EnvironmentVariables': {'AGENTBRIDGE_HOME': str(data)}}, stream)
+
+    def launchctl(command, **kwargs):
+        if command[1] == 'print':
+            return SimpleNamespace(returncode=0 if loaded else 1, stdout='', stderr='')
+        if command[1] == 'print-disabled':
+            value = 'disabled' if disabled else 'enabled'
+            return SimpleNamespace(returncode=0, stdout=f'{{\n "{autostart.LABEL}" => {value}\n}}', stderr='')
+        raise AssertionError(f'unexpected launchctl command: {command}')
+    monkeypatch.setattr(autostart.subprocess, 'run', launchctl)
+
+    assert autostart.is_registered(data) is expected
+
+
 def test_autostart_enable_and_disable_preserves_other_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, 'DATA', tmp_path)
     monkeypatch.setattr(cli, 'CONFIG', tmp_path / 'config.json')
     cli.write_config({'personal': True, 'port': 43210})
     monkeypatch.setattr(cli, 'startup_launcher', lambda: tmp_path / 'launcher')
     calls = []
-    monkeypatch.setattr(autostart, 'register', lambda launcher, data: calls.append(('register', launcher, data)))
+    monkeypatch.setattr(autostart, 'register', lambda launcher, data, **kwargs: calls.append(('register', launcher, data)))
     monkeypatch.setattr(autostart, 'unregister', lambda data: calls.append(('unregister', data)))
     cli.autostart_command('enable')
     assert json.loads(cli.CONFIG.read_text()) == {'personal': True, 'port': 43210, 'autostart': True}

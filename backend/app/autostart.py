@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import plistlib
+import re
 import subprocess
 import sys
 
@@ -24,7 +25,7 @@ def desktop_quote(value: str) -> str:
     return '"' + value.replace('%', '%%').replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$') + '"'
 
 
-def register(launcher: Path, data_dir: Path):
+def register(launcher: Path, data_dir: Path, *, enable_disabled=False):
     launcher = launcher.absolute()  # Preserve the installer symlink across upgrades.
     if not launcher.is_file():
         raise RuntimeError('The installed AgentBridge launcher could not be found.')
@@ -41,6 +42,12 @@ def register(launcher: Path, data_dir: Path):
             plistlib.dump(plist, stream)
         # The LaunchAgent is read at the next login. Load it now too when possible.
         domain = f'gui/{os.getuid()}'
+        if enable_disabled:
+            result = subprocess.run(['launchctl', 'enable', f'{domain}/{LABEL}'], capture_output=True, text=True)
+            if result.returncode:
+                raise RuntimeError(f'Could not enable LaunchAgent: {result.stderr.strip()}')
+        elif macos_disabled(domain):
+            raise RuntimeError("LaunchAgent is disabled in macOS; run 'agentbridge autostart enable' to enable it")
         loaded = subprocess.run(['launchctl', 'print', f'{domain}/{LABEL}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if loaded.returncode:
             result = subprocess.run(['launchctl', 'bootstrap', domain, str(path)], capture_output=True, text=True)
@@ -68,13 +75,13 @@ def register(launcher: Path, data_dir: Path):
 
 
 def unregister(data_dir: Path):
-    if not is_registered(data_dir):
-        return
     if sys.platform == 'darwin':
         path = Path.home() / 'Library/LaunchAgents' / f'{LABEL}.plist'
-        if path.exists():
+        if macos_plist(data_dir) is not None:
             subprocess.run(['launchctl', 'bootout', f'gui/{os.getuid()}/{LABEL}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             path.unlink(missing_ok=True)
+    elif not is_registered(data_dir):
+        return
     elif sys.platform.startswith('linux'):
         (Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'autostart/agentbridge.desktop').unlink(missing_ok=True)
     elif sys.platform == 'win32':
@@ -89,13 +96,39 @@ def unregister(data_dir: Path):
         raise RuntimeError('Automatic startup is not supported on this platform.')
 
 
+def macos_plist(data_dir: Path):
+    path = Path.home() / 'Library/LaunchAgents' / f'{LABEL}.plist'
+    try:
+        with path.open('rb') as stream:
+            plist = plistlib.load(stream)
+        if plist.get('EnvironmentVariables', {}).get('AGENTBRIDGE_HOME') == str(data_dir):
+            return plist
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return None
+
+
+def macos_disabled(domain):
+    result = subprocess.run(['launchctl', 'print-disabled', domain], capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(f'Could not check LaunchAgent status: {result.stderr.strip()}')
+    return bool(re.search(r'"' + re.escape(LABEL) + r'"\s*=>\s*(?:disabled|true)\b', result.stdout))
+
+
 def is_registered(data_dir: Path):
     if sys.platform == 'darwin':
-        path = Path.home() / 'Library/LaunchAgents' / f'{LABEL}.plist'
+        plist = macos_plist(data_dir)
+        if plist is None:
+            return False
+        args = plist.get('ProgramArguments')
+        if not isinstance(args, list) or len(args) != 2 or args[1] != 'start' or not isinstance(args[0], str) or not Path(args[0]).is_file() or not plist.get('RunAtLoad'):
+            return False
+        domain = f'gui/{os.getuid()}'
         try:
-            with path.open('rb') as stream:
-                return plistlib.load(stream).get('EnvironmentVariables', {}).get('AGENTBRIDGE_HOME') == str(data_dir)
-        except (OSError, ValueError, TypeError):
+            if macos_disabled(domain):
+                return False
+            return subprocess.run(['launchctl', 'print', f'{domain}/{LABEL}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        except (OSError, RuntimeError):
             return False
     if sys.platform.startswith('linux'):
         path = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'autostart/agentbridge.desktop'
