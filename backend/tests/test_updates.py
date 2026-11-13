@@ -13,6 +13,7 @@ def test_version_matches_package_metadata():
 
 
 def test_update_check_caches_stable_releases(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, 'frozen', True, raising=False)
     class Response:
         def __enter__(self): return self
         def __exit__(self, *args): pass
@@ -26,11 +27,23 @@ def test_update_check_caches_stable_releases(tmp_path, monkeypatch):
 
 
 def test_update_check_handles_offline_and_invalid_release(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, 'frozen', True, raising=False)
     def offline(*args, **kwargs): raise OSError('offline')
     monkeypatch.setattr(updates.urllib.request, 'urlopen', offline)
     assert not updates.check_update(tmp_path)['available']
     (tmp_path / 'update-check.json').write_text(json.dumps({'checked_at': time.time(), 'latest': 'v99.0.0-rc1'}))
     assert not updates.check_update(tmp_path)['available']
+
+
+def test_source_checkout_does_not_offer_packaged_updates(tmp_path, monkeypatch):
+    monkeypatch.delattr(sys, 'frozen', raising=False)
+    def unexpected_request(*args, **kwargs):
+        raise AssertionError('source checkout should not query releases')
+    monkeypatch.setattr(updates.urllib.request, 'urlopen', unexpected_request)
+    result = updates.check_update(tmp_path, force=True)
+    assert result['current'].endswith('(development)')
+    assert not result['available']
+    assert result['latest'] is None
 
 
 def test_cli_prints_update_notice(monkeypatch, capsys):

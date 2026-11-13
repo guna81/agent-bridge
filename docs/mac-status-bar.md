@@ -20,4 +20,4 @@ The Linux tray requires a supported graphical X11 desktop with a system tray. Wi
 
 ## Source-based macOS helper
 
-The packaged CLI starts the native macOS helper automatically. For a source checkout, `./menubar/build.sh` builds the helper and `./manage-service.sh menubar {start|stop|restart|status|build}` manages it separately. The source service and the packaged CLI are separate launch methods; avoid running both gateways on the same port.
+The packaged CLI starts the native macOS helper automatically. For a source checkout, `./menubar/build.sh` builds the helper and `./manage-service.sh menubar {start|stop|restart|status|build}` manages it separately. A source-installed launcher depends on the checkout path: macOS privacy protections can prevent login jobs from accessing a checkout under Desktop, Documents, or Downloads even when starting it manually works. Prefer a packaged installation or a checkout in an accessible location, and check `~/.agentbridge/autostart.log` after login. The source service and the packaged CLI are separate launch methods; avoid running both gateways on the same port.

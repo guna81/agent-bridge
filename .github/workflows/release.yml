@@ -1,7 +1,10 @@
 name: Build and release AgentBridge
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main, develop]
   push:
+    branches: [develop]
     tags:
       - 'v*'
 permissions:
@@ -53,9 +56,12 @@ jobs:
           name: agentbridge-${{ matrix.platform }}
           path: build/artifacts/*
           if-no-files-found: error
+  verify:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/ci.yml
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, verify]
     runs-on: ubuntu-latest
     permissions:
       contents: write

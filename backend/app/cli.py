@@ -159,6 +159,9 @@ def autostart_command(action):
     config = read_config()
     if action == 'status':
         print('Automatic startup: ' + ('enabled' if autostart.is_registered(DATA) else 'not registered or inactive'))
+        failure = autostart.macos_last_failure()
+        if failure is not None:
+            print(f'Last login startup exited with code {failure}; check {DATA / "autostart.log"}.', file=sys.stderr)
         return
     if action == 'enable':
         launcher = startup_launcher()
@@ -441,7 +444,7 @@ Data and credentials are stored in ~/.agentbridge (override with AGENTBRIDGE_HOM
 Documentation: https://github.com/guna81/agent-bridge#readme""",
     )
     from app.updates import VERSION, check_update
-    parser.add_argument("--version", action="version", version=f"AgentBridge {VERSION}")
+    parser.add_argument("--version", action="version", version=f"AgentBridge {VERSION}" + (" (development)" if not FROZEN else ""))
     sub = parser.add_subparsers(dest="command", required=True, title="commands",
                                 metavar="{start,stop,status,dashboard,autostart,update,uninstall}")
     start_parser = sub.add_parser("start", help="start the gateway and status indicator",

@@ -16,6 +16,8 @@ def test_cli_start_and_stop(tmp_path):
     for key in ('PROXY_DATABASE_URL', 'PROXY_QUEUE_BACKEND', 'PROXY_REDIS_URL'):
         env.pop(key, None)
     env['AGENTBRIDGE_HOME'] = str(tmp_path)
+    # Integration tests must never register or replace the user's login job.
+    env['AGENTBRIDGE_DISABLE_AUTOSTART'] = '1'
     (tmp_path / 'update-check.json').write_text(json.dumps({'checked_at': __import__('time').time(), 'latest': None}))
     # Old API-key-only settings must not keep CLI logins disabled after upgrading.
     (tmp_path / 'config.json').write_text(json.dumps({'personal': False}))
@@ -62,6 +64,7 @@ def test_running_gateway_repairs_missing_helper_and_autostart(tmp_path, monkeypa
     monkeypatch.setattr(cli, 'CONFIG', tmp_path / 'config.json')
     monkeypatch.delenv('AGENTBRIDGE_DISABLE_AUTOSTART', raising=False)
     monkeypatch.setattr(cli, 'state', lambda: info.copy())
+    monkeypatch.setattr(cli, 'credentials', lambda: {'admin_token': 'test-token'})
     monkeypatch.setattr(cli, 'startup_launcher', lambda: launcher)
     monkeypatch.setattr(autostart, 'is_registered', lambda data: False)
     monkeypatch.setattr(autostart, 'register', lambda executable, data: calls.append((executable, data)))

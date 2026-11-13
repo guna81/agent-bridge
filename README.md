@@ -84,7 +84,7 @@ These are future plans, not available features:
 
 ## Install from source
 
-For development, install Python 3.12 via [uv](https://docs.astral.sh/uv/) and Node.js/npm, then:
+For development, install Python 3.12 via [uv](https://docs.astral.sh/uv/) and Node.js 20.19+ or 22.12+ (with npm), then:
 
 ```sh
 git clone https://github.com/guna81/agent-bridge.git
@@ -100,7 +100,7 @@ On Windows, use `./install-cli.ps1` in PowerShell instead. Follow the printed PA
 
 This alternative runs the standalone source server on port **8000** by default. It is separate from the packaged CLI, which defaults to port **43187**.
 
-**You need:** macOS or Linux, [`uv`](https://docs.astral.sh/uv/) (it installs Python 3.12 for you), Node 20+, and at
+**You need:** macOS or Linux, [`uv`](https://docs.astral.sh/uv/) (it installs Python 3.12 for you), Node 20.19+ or 22.12+ (Node 21 is not supported), and at
 least one CLI on your `PATH` that you have signed in to or have an API key for (`claude`, `codex`, `agy`, `gemini`).
 
 ```bash
