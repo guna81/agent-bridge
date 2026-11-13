@@ -21,5 +21,5 @@ target.write_text('#!/bin/sh\nexec ' + shlex.quote(str(root / 'agentbridge')) + 
 target.chmod(0o755)
 PY
 printf '\nInstalled %s/agentbridge. Keep this checkout in place.\n' "$INSTALL_DIR"
-printf 'Run: agentbridge start --personal\n'
+printf 'Run: agentbridge start\n'
 printf 'If the command is not found, add %s to your PATH.\n' "$INSTALL_DIR"

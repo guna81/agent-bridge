@@ -20,4 +20,4 @@ set "PYTHONPATH=$root\backend;%PYTHONPATH%"
 "$python" -m app.cli %*
 "@ | Set-Content -Encoding Ascii $launcher
 Write-Host "Installed $launcher. Keep this checkout in place."
-Write-Host "Add $bin to your PATH, then run: agentbridge start --personal"
+Write-Host "Add $bin to your PATH, then run: agentbridge start"

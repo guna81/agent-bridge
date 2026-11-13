@@ -191,14 +191,12 @@ def start(args):
         except OSError as exc:
             raise RuntimeError(f"Port {args.port} is already in use; choose another with --port.") from exc
     values = credentials()
-    if args.personal is None:
-        args.personal = bool(config.get("personal", False))
     env = os.environ.copy()
     env.update(PROXY_DATA_DIR=str(DATA), PROXY_HOST="127.0.0.1", PROXY_PORT=str(args.port),
                PROXY_SECRET_KEY=values["secret_key"], PROXY_KEY_PEPPER=values["key_pepper"],
                PROXY_ADMIN_TOKEN=values["admin_token"], PROXY_FRONTEND_DIST=str(ROOT / "frontend" / "dist"),
-               PROXY_SINGLE_USER_PERSONAL_USE=str(args.personal).lower(),
-               AGENTBRIDGE_SEED_PERSONAL=str(args.personal).lower())
+               PROXY_SINGLE_USER_PERSONAL_USE="true",
+               AGENTBRIDGE_SEED_PERSONAL="true")
     log = (DATA / "service.log").open("a")
     try:
         child = subprocess.Popen(child_command("_serve"), cwd=ROOT if FROZEN else ROOT / "backend", env=env,
@@ -219,14 +217,14 @@ def start(args):
     if not process_identity:
         child.terminate()
         raise RuntimeError("Could not verify the gateway process; it was stopped.")
-    info = {"pid": child.pid, "identity": process_identity, "port": args.port, "personal": args.personal}
+    info = {"pid": child.pid, "identity": process_identity, "port": args.port}
     STATE.write_text(json.dumps(info))
     STATE.chmod(0o600)
-    config.update(personal=args.personal, port=args.port)
+    config.pop("personal", None)
+    config.update(port=args.port)
     write_config(config)
     print(f"Gateway running at http://127.0.0.1:{args.port}")
-    if args.personal:
-        print("Personal CLI login reuse enabled for newly created providers.")
+    print("Provider API keys and personal CLI logins are available.")
     if sys.platform == "darwin" and not args.no_tray:
         binary = ROOT / "menubar" / "LLMGatewayBar"
         if binary.exists():
@@ -407,7 +405,7 @@ def main():
         description="Run a local AI gateway and monitor subscription usage in your menu bar or system tray.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Quick start:
-  agentbridge start --personal   Start with your own CLI logins
+  agentbridge start              Start with your own CLI logins
   agentbridge dashboard          Open the signed-in dashboard
   agentbridge status             Check whether the gateway is running
 
@@ -423,16 +421,12 @@ Documentation: https://github.com/guna81/agent-bridge#readme""",
         description="Start the local gateway and menu bar or system tray indicator in the background.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
-  agentbridge start --personal
-  agentbridge start --api-key-mode
+  agentbridge start
   agentbridge start --port 43188 --no-tray
 
-If no authentication mode is specified, the last saved mode is used.
+Provider API keys and personal CLI logins are both available.
 The gateway listens on 127.0.0.1. Install and sign in to provider CLIs separately.""")
     start_parser.add_argument("--port", type=int, default=None, help=f"local gateway port (default: saved port, otherwise {DEFAULT_PORT})")
-    mode = start_parser.add_mutually_exclusive_group()
-    mode.add_argument("--personal", dest="personal", action="store_true", default=None, help="reuse your own CLI logins for personal use; enable newly created providers")
-    mode.add_argument("--api-key-mode", dest="personal", action="store_false", help="disable reuse of local CLI logins")
     start_parser.add_argument("--no-tray", action="store_true", help="start the gateway without a menu bar or tray indicator")
     sub.add_parser("stop", help="stop the managed gateway and indicator",
                    description="Stop the gateway and status indicator started by this CLI. User data is retained.")

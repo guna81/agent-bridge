@@ -43,10 +43,10 @@ export default function Providers({ settings }: { settings: AdminSettings }) {
           <strong>Subscription logins are for personal use only.</strong> Use API keys for anything that serves other people.
         </summary>
         <p>
-          Anthropic's terms restrict consumer-subscription OAuth tokens to Claude Code and Claude.ai, and say products that serve other users should use API
-          keys. Check the terms of the other CLIs yourself. Providers therefore default to <code>api_key</code> auth, and <code>oauth_cli</code> is only
-          available when the server runs with <code>PROXY_SINGLE_USER_PERSONAL_USE=true</code> (currently{" "}
-          <strong>{settings.single_user_personal_use ? "on" : "off"}</strong>).
+          Choose a sign-in method for each provider. API keys are available for all providers; CLI login reuse is{" "}
+          <strong>{settings.single_user_personal_use ? "available for personal use" : "disabled in this server configuration"}</strong>.
+          Anthropic's terms restrict consumer-subscription OAuth tokens to Claude Code and Claude.ai. Check each provider's terms before using a subscription.
+          {!settings.single_user_personal_use && <> For a separately configured server, enable <code>PROXY_SINGLE_USER_PERSONAL_USE</code> to allow CLI logins.</>}
         </p>
       </details>
       <ErrorNote message={error} />
@@ -227,7 +227,7 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
           <h3>Connection</h3>
           <div className="grid">
             <Field label="Backend">
-              <select value={d.backend} onChange={(e) => set("backend", e.target.value as Provider["backend"])}>
+              <select value={d.backend} onChange={(e) => setD((x) => ({ ...x, backend: e.target.value as Provider["backend"], ...(e.target.value === "direct" ? { auth_mode: "api_key", use_host_home: false } : {}) }))}>
                 <option value="cli">CLI subprocess</option>
                 <option value="direct">Direct API (no CLI)</option>
               </select>
@@ -239,10 +239,10 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
             )}
             {isCli && (
               <Field label="Sign-in method">
-                <select value={d.auth_mode} onChange={(e) => set("auth_mode", e.target.value as Provider["auth_mode"])}>
-                  <option value="api_key">API key (recommended)</option>
+                <select value={d.auth_mode} onChange={(e) => setD((x) => ({ ...x, auth_mode: e.target.value as Provider["auth_mode"], ...(e.target.value === "api_key" ? { use_host_home: false } : {}) }))}>
+                  <option value="api_key">Provider API key</option>
                   <option value="oauth_cli" disabled={!oauthOk}>
-                    CLI login {oauthOk ? "(personal use)" : "(off: not single-user mode)"}
+                    CLI login {oauthOk ? "(personal use)" : "(disabled in server configuration)"}
                   </option>
                 </select>
               </Field>
@@ -253,6 +253,9 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
               </Field>
             )}
           </div>
+          {isCli && d.auth_mode === "oauth_cli" && !oauthOk && (
+            <p className="note warn">This saved CLI login is disabled in the server configuration. Select a provider API key or enable personal CLI logins.</p>
+          )}
           {isCli && d.auth_mode === "oauth_cli" && (
             <div className="row" style={{ marginTop: 10 }}>
               <label className="check">

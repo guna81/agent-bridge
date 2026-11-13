@@ -5,7 +5,7 @@ AgentBridge can display subscription usage in the macOS menu bar or the Windows 
 ## Start and configure
 
 ```sh
-agentbridge start --personal
+agentbridge start
 agentbridge dashboard
 ```
 
