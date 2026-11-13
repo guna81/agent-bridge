@@ -35,6 +35,6 @@ try {
         [Environment]::SetEnvironmentVariable('Path', (($userPath.TrimEnd(';') + ';' + $bin).TrimStart(';')), 'User')
     }
     Write-Host "Installed AgentBridge to $launcher. Open a new terminal to update PATH."
-    Write-Host 'Run: agentbridge start --personal'
+    Write-Host 'Run: agentbridge start'
     Write-Host 'Then: agentbridge dashboard'
 } finally { Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue }

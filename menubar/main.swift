@@ -88,7 +88,7 @@ class AppConfig {
     var host: String = "127.0.0.1"
     var port: Int = 8765
     var adminToken: String = ""
-    var refreshInterval: TimeInterval = 3.0
+    var refreshInterval: TimeInterval = 5.0
     var projectRoot: String = ""
     
     init() {
@@ -102,19 +102,23 @@ class AppConfig {
     
     private func findProjectRoot() {
         let fileManager = FileManager.default
-        var dir = URL(fileURLWithPath: fileManager.currentDirectoryPath)
-        for _ in 0..<5 {
-            if fileManager.fileExists(atPath: dir.appendingPathComponent("backend/.env").path) {
-                projectRoot = dir.path
-                return
+        let startingDirectories = [
+            Bundle.main.bundleURL,
+            URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.deletingLastPathComponent(),
+            URL(fileURLWithPath: fileManager.currentDirectoryPath)
+        ]
+        for start in startingDirectories {
+            var dir = start
+            for _ in 0..<8 {
+                if fileManager.fileExists(atPath: dir.appendingPathComponent("backend/.env").path) ||
+                    fileManager.fileExists(atPath: dir.appendingPathComponent(".env").path) {
+                    projectRoot = dir.path
+                    return
+                }
+                let parent = dir.deletingLastPathComponent()
+                if parent.path == dir.path { break }
+                dir = parent
             }
-            if fileManager.fileExists(atPath: dir.appendingPathComponent(".env").path) {
-                projectRoot = dir.path
-                return
-            }
-            let parent = dir.deletingLastPathComponent()
-            if parent.path == dir.path { break }
-            dir = parent
         }
 
     }
@@ -159,7 +163,7 @@ class AppConfig {
             } else if args[i] == "--host", i + 1 < args.count {
                 self.host = args[i + 1]
             } else if args[i] == "--interval", i + 1 < args.count, let sec = Double(args[i + 1]) {
-                self.refreshInterval = max(1.0, sec)
+                if [2.0, 5.0, 10.0, 30.0].contains(sec) { self.refreshInterval = sec }
             }
         }
     }
@@ -264,7 +268,7 @@ class StatusBarController: NSObject {
                 let decoded = try JSONDecoder().decode(StatusBarResponse.self, from: data)
                 DispatchQueue.main.async {
                     self.latestData = decoded
-                    self.schedulePolling(TimeInterval(decoded.config?.refresh_interval_seconds ?? 3))
+                    self.schedulePolling(TimeInterval(decoded.config?.refresh_interval_seconds ?? 5))
                     self.isOffline = false
                     if let pinned = decoded.config?.pinned_metric, pinned != self.lastSyncedServerPinnedMetric {
                         self.applyPinnedMetricKey(pinned)
@@ -510,6 +514,19 @@ class StatusBarController: NSObject {
         let selectItem = NSMenuItem(title: "CLIs in Menu Bar (up to 2)", action: nil, keyEquivalent: "")
         selectItem.submenu = selection
         menu.addItem(selectItem)
+        let intervals = NSMenu()
+        intervals.autoenablesItems = false
+        for seconds in [2, 5, 10, 30] {
+            let item = NSMenuItem(title: "\(seconds) seconds", action: #selector(changeRefreshIntervalAction(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = seconds
+            item.state = Int(pollingInterval) == seconds ? .on : .off
+            item.isEnabled = !isOffline && latestData != nil
+            intervals.addItem(item)
+        }
+        let intervalItem = NSMenuItem(title: "Refresh Interval", action: nil, keyEquivalent: "")
+        intervalItem.submenu = intervals
+        menu.addItem(intervalItem)
         menu.addItem(.separator())
         let dashboard = NSMenuItem(title: "Open Web Dashboard", action: #selector(openDashboardAction), keyEquivalent: "d")
         dashboard.target = self
@@ -533,6 +550,21 @@ class StatusBarController: NSObject {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !AppConfig.shared.adminToken.isEmpty { req.setValue("Bearer \(AppConfig.shared.adminToken)", forHTTPHeaderField: "Authorization") }
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["selected_clis": selected])
+        URLSession.shared.dataTask(with: req) { [weak self] _, response, error in
+            guard error == nil, let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else { return }
+            self?.fetchData()
+        }.resume()
+    }
+
+    @objc private func changeRefreshIntervalAction(_ sender: NSMenuItem) {
+        guard let seconds = sender.representedObject as? Int,
+              [2, 5, 10, 30].contains(seconds),
+              let url = URL(string: "http://\(AppConfig.shared.host):\(AppConfig.shared.port)/admin/status-bar/config") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if !AppConfig.shared.adminToken.isEmpty { req.setValue("Bearer \(AppConfig.shared.adminToken)", forHTTPHeaderField: "Authorization") }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_interval_seconds": seconds])
         URLSession.shared.dataTask(with: req) { [weak self] _, response, error in
             guard error == nil, let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else { return }
             self?.fetchData()

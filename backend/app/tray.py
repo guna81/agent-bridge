@@ -81,6 +81,7 @@ class Tray:
     def __init__(self):
         self.data = {}
         self.stopped = threading.Event()
+        self.refresh_event = threading.Event()
         self.indicator_enabled = True
         self.icon = pystray.Icon('AgentBridge', usage_icon({}), 'AgentBridge')
 
@@ -110,6 +111,12 @@ class Tray:
         finally:
             self.update()
 
+    def select_interval(self, seconds):
+        try:
+            request('/admin/status-bar/config', {'refresh_interval_seconds': seconds})
+        finally:
+            self.refresh_event.set()
+
     def menu(self):
         selected = self.data.get('config', {}).get('selected_clis', ['antigravity'])
         limits = self.data.get('rate_limits') or {}
@@ -128,7 +135,15 @@ class Tray:
                     checked=lambda item, n=name: n in self.data.get('config', {}).get('selected_clis', ['antigravity']),
                     enabled=(name in selected and len(selected) > 1) or (name not in selected and len(selected) < 2))
                    for name, label in NAMES.items()]
+        def interval_action(seconds):
+            return lambda icon, item: self.select_interval(seconds)
+
+        interval_choices = [pystray.MenuItem(f'{seconds} seconds',
+                            interval_action(seconds),
+                            checked=lambda item, value=seconds: self.data.get('config', {}).get('refresh_interval_seconds', 5) == value,
+                            enabled=bool(self.data)) for seconds in (2, 5, 10, 30)]
         items.extend([pystray.Menu.SEPARATOR, pystray.MenuItem('Providers in tray (up to 2)', pystray.Menu(*choices)),
+                      pystray.MenuItem('Refresh interval', pystray.Menu(*interval_choices)),
                       pystray.MenuItem('Open dashboard', lambda: webbrowser.open(BASE + '/#admin_token=' + urllib.parse.quote(TOKEN, safe=''))),
                       pystray.MenuItem('Refresh', lambda: self.update()),
                       pystray.MenuItem('Quit tray', self.quit)])
@@ -136,13 +151,15 @@ class Tray:
 
     def quit(self):
         self.stopped.set()
+        self.refresh_event.set()
         self.icon.stop()
 
     def poll(self):
         while not self.stopped.is_set():
             self.update()
-            interval = self.data.get('config', {}).get('refresh_interval_seconds', 3)
-            self.stopped.wait(max(2, min(300, int(interval))))
+            interval = self.data.get('config', {}).get('refresh_interval_seconds', 5)
+            self.refresh_event.wait(max(2, min(300, int(interval))))
+            self.refresh_event.clear()
 
     def run(self):
         # pystray invokes setup on a worker only after the native event loop is ready.

@@ -38,6 +38,6 @@ if [ -e "$bin/agentbridge" ] || [ -L "$bin/agentbridge" ]; then
 fi
 ln -s "$release/agentbridge/agentbridge" "$bin/agentbridge"
 echo "Installed AgentBridge to $bin/agentbridge"
-echo 'Run: agentbridge start --personal'
+echo 'Run: agentbridge start'
 echo 'Then: agentbridge dashboard'
 echo "Ensure $bin is on your PATH. Existing gateways can be stopped with agentbridge stop."

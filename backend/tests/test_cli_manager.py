@@ -16,15 +16,18 @@ def test_cli_start_and_stop(tmp_path):
         env.pop(key, None)
     env['AGENTBRIDGE_HOME'] = str(tmp_path)
     (tmp_path / 'update-check.json').write_text(json.dumps({'checked_at': __import__('time').time(), 'latest': None}))
+    # Old API-key-only settings must not keep CLI logins disabled after upgrading.
+    (tmp_path / 'config.json').write_text(json.dumps({'personal': False}))
     env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
     command = [sys.executable, '-m', 'app.cli']
     def run(*args):
         return subprocess.run([*command, *args], env=env, capture_output=True, text=True, timeout=20)
     try:
-        started = run('start', '--personal', '--no-tray', '--port', str(port))
+        started = run('start', '--no-tray', '--port', str(port))
         assert started.returncode == 0, started.stderr
         assert 'ready' in run('status').stdout
-        assert json.loads((tmp_path / 'service.json').read_text())['personal'] is True
+        assert 'personal' not in json.loads((tmp_path / 'config.json').read_text())
+        assert 'Provider API keys and personal CLI logins are available' in started.stdout
         occupied = run('start', '--port', str(port))
         assert 'already running' in occupied.stdout
         assert run('stop').returncode == 0
@@ -32,7 +35,7 @@ def test_cli_start_and_stop(tmp_path):
         restarted = run('start', '--no-tray')
         assert restarted.returncode == 0, restarted.stderr
         assert json.loads((tmp_path / 'service.json').read_text())['port'] == port
-        assert json.loads((tmp_path / 'service.json').read_text())['personal'] is True
+        assert 'Provider API keys and personal CLI logins are available' in restarted.stdout
     finally:
         run('stop')
 
@@ -154,7 +157,7 @@ def test_public_help_describes_commands_and_hides_helpers(monkeypatch, capsys):
         cli.main()
     assert result.value.code == 0
     output = capsys.readouterr().out
-    assert 'agentbridge start --personal' in output
+    assert 'agentbridge start' in output
     assert 'uninstall' in output and 'dashboard' in output
     assert '_serve' not in output and '_tray' not in output
 

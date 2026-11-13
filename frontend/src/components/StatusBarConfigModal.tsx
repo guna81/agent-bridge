@@ -13,7 +13,7 @@ export default function StatusBarConfigModal({ config, onSave, onClose, inline =
   const [enabledProviders, setEnabledProviders] = useState(config.enabled_providers);
   const [selectedClis, setSelectedClis] = useState<string[]>(config.selected_clis || ["antigravity"]);
   const [displayMode, setDisplayMode] = useState(config.display_mode || "bars");
-  const [interval, setInterval] = useState(config.refresh_interval_seconds || 3);
+  const [interval, setInterval] = useState(config.refresh_interval_seconds || 5);
   const [codexPath, setCodexPath] = useState(config.codex_sqlite_path || "");
   const [claudePath, setClaudePath] = useState(config.claude_json_path || "");
   const [agyAddress, setAgyAddress] = useState(config.antigravity_ls_address || "");
@@ -130,11 +130,10 @@ export default function StatusBarConfigModal({ config, onSave, onClose, inline =
               onChange={(e) => setInterval(Number(e.target.value))}
               className="select-input"
             >
-              {![2, 3, 5, 10].includes(interval) && <option value={interval}>{interval} seconds</option>}
-              <option value={2}>2 seconds (High responsiveness)</option>
-              <option value={3}>3 seconds (Recommended)</option>
+              <option value={2}>2 seconds</option>
               <option value={5}>5 seconds</option>
-              <option value={10}>10 seconds (Battery saver)</option>
+              <option value={10}>10 seconds</option>
+              <option value={30}>30 seconds</option>
             </select>
           </div>
 

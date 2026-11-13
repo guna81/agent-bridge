@@ -31,16 +31,16 @@ The installers download the [latest release](https://github.com/guna81/agent-bri
 2. Start AgentBridge and open its signed-in dashboard:
 
    ```sh
-   agentbridge start --personal
+   agentbridge start
    agentbridge dashboard
    ```
 
 3. In **Providers**, review and enable the providers you want. Existing provider settings are not overwritten. In **Subscription usage**, inspect available limits; in **Status indicator**, enable or hide the indicator, choose up to two providers, the display style, and refresh interval.
 4. To use the gateway from another app, add a user and create a key under **API keys & users**. Point an OpenAI-compatible client at `http://127.0.0.1:43187/v1` and use a `provider/model` identifier. The **API quick start** and **Playground** pages provide examples.
 
-`--personal` enables reuse of this machine's CLI logins for personal use and configures newly created providers accordingly. Review provider terms before using subscription credentials through an API. For API-key mode, run `agentbridge start --api-key-mode` instead. The dashboard command opens the app signed in; for manual sign-in use `agentbridge dashboard --show-token` and keep the token private.
+Provider API keys and personal CLI logins are available: choose the sign-in method separately for each provider in the dashboard. Newly created built-in providers are configured to reuse local CLI logins. The dashboard command opens the app signed in; for manual sign-in use `agentbridge dashboard --show-token` and keep the token private.
 
-> **Subscription logins are for personal use only.** Anthropic's terms restrict consumer-subscription OAuth tokens to Claude Code and Claude.ai. Check the terms of other providers before using their subscription credentials. The `oauth_cli` mode and reuse of the server user's CLI login require personal-use mode.
+> **Subscription logins are for personal use only.** Anthropic's terms restrict consumer-subscription OAuth tokens to Claude Code and Claude.ai. Check the terms of other providers before using their subscription credentials. For separately configured servers, `oauth_cli` and reuse of the server user's CLI login require `PROXY_SINGLE_USER_PERSONAL_USE=true`.
 
 ## Everyday commands
 
@@ -55,12 +55,12 @@ agentbridge update                # install the latest stable release
 agentbridge uninstall             # stop and remove the installation; keep user data
 agentbridge uninstall --purge     # also remove settings, credentials and database
 agentbridge stop                  # stop gateway and indicator
-agentbridge start                 # start using the saved authentication mode
+agentbridge start                 # start the gateway
 agentbridge start --port 43188    # choose another port
 agentbridge start --no-tray       # run without a status indicator
 ```
 
-After an update, run `agentbridge stop` followed by `agentbridge start` to use the new version. Updates retain the existing installation files and user data. Uninstall retains user data unless `--purge` is supplied; a source checkout and installer launcher backups are retained. On Windows, packaged uninstall completes after the command exits and reports a log path. AgentBridge stores its database, secrets, and logs in `~/.agentbridge` (override with `AGENTBRIDGE_HOME`) and binds to loopback by default. For tray startup errors on Windows or Linux, check `~/.agentbridge/tray.log`. After the first successful start, AgentBridge enables automatic startup at user login when it can verify the installed launcher. It remembers the gateway port and authentication mode. Use `agentbridge autostart disable` to turn this off. Linux requires a desktop session that supports XDG autostart; tray support varies by desktop.
+After an update, run `agentbridge stop` followed by `agentbridge start` to use the new version. Updates retain the existing installation files and user data. Uninstall retains user data unless `--purge` is supplied; a source checkout and installer launcher backups are retained. On Windows, packaged uninstall completes after the command exits and reports a log path. AgentBridge stores its database, secrets, and logs in `~/.agentbridge` (override with `AGENTBRIDGE_HOME`) and binds to loopback by default. For tray startup errors on Windows or Linux, check `~/.agentbridge/tray.log`. After the first successful start, AgentBridge enables automatic startup at user login when it can verify the installed launcher. It remembers the gateway port. Use `agentbridge autostart disable` to turn this off. Linux requires a desktop session that supports XDG autostart; tray support varies by desktop.
 
 The indicator shows remaining capacity: its bars shrink as usage increases. The compact icon opens the same usage details, and the menu includes percentages and reset times when available. Windows and Linux use compact tray graphics; an always-visible widget is not currently available. See the [status indicator guide](docs/mac-status-bar.md).
 
@@ -75,6 +75,13 @@ The indicator shows remaining capacity: its bars shrink as usage increases. The 
 
 Requests run provider CLIs as subprocesses and charge applicable gateway usage to the caller's credits. Agent mode can run commands and edit files as the server user; enable it only for trusted callers.
 
+## Roadmap
+
+These are future plans, not available features:
+
+- **Multi-agent orchestration**: a master agent that coordinates and delegates work to other agents, such as Claude and Gemini, and brings their results together.
+- **LLM router**: route tasks to an appropriate model based on their complexity, with the aim of balancing capability, speed, and cost.
+
 ## Install from source
 
 For development, install Python 3.12 via [uv](https://docs.astral.sh/uv/) and Node.js/npm, then:
@@ -83,7 +90,7 @@ For development, install Python 3.12 via [uv](https://docs.astral.sh/uv/) and No
 git clone https://github.com/guna81/agent-bridge.git
 cd agent-bridge
 ./install-cli.sh
-agentbridge start --personal
+agentbridge start
 agentbridge dashboard
 ```
 

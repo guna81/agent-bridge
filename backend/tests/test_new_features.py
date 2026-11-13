@@ -554,14 +554,14 @@ def test_status_bar_config_and_antigravity(live):
     updated = live.admin("POST", "/status-bar/config", json={
         "enabled_providers": {"codex": True, "claude": True, "antigravity": True},
         "pinned_metric": "antigravity_gemini_5h",
-        "refresh_interval_seconds": 4,
+        "refresh_interval_seconds": 5,
         "antigravity_ls_address": "",
         "antigravity_csrf_token": "",
         "codex_sqlite_path": "",
         "claude_json_path": "",
     })
     assert updated["pinned_metric"] == "antigravity_gemini_5h"
-    assert updated["refresh_interval_seconds"] == 4
+    assert updated["refresh_interval_seconds"] == 5
 
 
 
