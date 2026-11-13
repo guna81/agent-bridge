@@ -19,6 +19,7 @@ from ..config import get_settings
 from ..db import session_scope
 from ..errors import ProxyError, not_found_model
 from ..models import ApiKey, Provider
+from ..provider_models import provider_models
 
 _DATA_URL = re.compile(r"^data:(image/(?:png|jpeg|gif|webp));base64,(.*)$", re.DOTALL)
 IMAGE_TYPES = ("image/png", "image/jpeg", "image/gif", "image/webp")
@@ -49,7 +50,7 @@ def resolve_provider(model: str) -> tuple[Provider, str]:
         if p is None:
             raise not_found_model(model)
         s.expunge(p)
-    if slug not in (p.models or []) and slug != p.default_model:
+    if slug not in provider_models(p):
         raise not_found_model(model)
     return p, slug
 
@@ -73,7 +74,7 @@ def resolve_routed_provider(key: ApiKey, model: str) -> tuple[Provider, str, str
     name, slug = model.split("/", 1)
     with session_scope() as s:
         primary = s.scalar(select(Provider).where(Provider.name == name))
-        if primary is None or (slug not in (primary.models or []) and slug != primary.default_model):
+        if primary is None or slug not in provider_models(primary):
             raise not_found_model(model)
         s.expunge(primary)
     unavailable = not primary.enabled or (primary.backend == "cli" and not resolve_binary(primary.binary_path or primary.kind)) or (

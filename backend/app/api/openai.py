@@ -15,6 +15,7 @@ from ..adapters.base import Done, Error, Image, NormalizedRequest, TextDelta, Us
 from ..db import session_scope
 from ..errors import ProxyError
 from ..models import Provider
+from ..provider_models import provider_models
 from ..backends.direct import ANTHROPIC_MODELS
 from ..pricing import pricing_rate
 from ..service import run_chat
@@ -162,7 +163,7 @@ async def list_models(request: Request):
         data = [
             {"id": f"{p.name}/{m}", "object": "model", "created": now, "owned_by": p.name}
             for p in s.scalars(select(Provider).where(Provider.enabled.is_(True)).order_by(Provider.name))
-            for m in dict.fromkeys([*(p.models or []), *([p.default_model] if p.default_model else [])])
+            for m in provider_models(p)
         ]
     return {"object": "list", "data": [d for d in data if model_allowed(key, d["id"])]}
 

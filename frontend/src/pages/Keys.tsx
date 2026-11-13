@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { admin, ago, fullTime, KeyRow, money, num, setPlaygroundKey, until, UserRow } from "../api";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { admin, ago, discoveredModels, fullTime, KeyRow, money, num, Provider, setPlaygroundKey, until, UserRow } from "../api";
 import type { Tab } from "../App";
 import Operations from "../components/Operations";
 import { Confirm, CopyButton, Empty, ErrorNote, Field, Modal, Pill } from "../components/ui";
@@ -26,11 +26,11 @@ export default function Keys({ go, usageOnly = false }: { go: (t: Tab) => void; 
       const [u, k, p] = await Promise.all([
         admin<UserRow[]>("GET", "/users"),
         admin<KeyRow[]>("GET", "/keys"),
-        admin<{ name: string; enabled: boolean; models: string[]; default_model: string }[]>("GET", "/providers"),
+        admin<Provider[]>("GET", "/providers"),
       ]);
       setUsers(u);
       setKeys(k);
-      setModels(p.filter((x) => x.enabled).flatMap((x) => [...new Set([...x.models, x.default_model].filter(Boolean))].map((m) => `${x.name}/${m}`)));
+      setModels(p.filter((x) => x.enabled).flatMap((x) => [...new Set([...x.models, ...discoveredModels(x), x.default_model].filter(Boolean))].map((m) => `${x.name}/${m}`)));
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -327,6 +327,72 @@ const toLocalInput = (iso: string | null) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
+function ModelPicker({ value, onChange, models }: { value: string; onChange: (value: string) => void; models: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const inputId = useId();
+  const panelId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const selected = value.split(",").map((item) => item.trim()).filter(Boolean);
+  const selectedSet = new Set(selected);
+  const groups = new Map<string, string[]>();
+  for (const model of models) {
+    if (!model.toLowerCase().includes(search.trim().toLowerCase())) continue;
+    const provider = model.split("/", 1)[0];
+    groups.set(provider, [...(groups.get(provider) ?? []), model]);
+  }
+
+  function toggle(model: string) {
+    // A partially typed final entry is a search, not an additional model ID.
+    const entries = [...selected];
+    if (search && entries[entries.length - 1] === search && !models.includes(search) && !search.includes("*")) entries.pop();
+    onChange((entries.includes(model) ? entries.filter((item) => item !== model) : [...entries, model]).join(", "));
+    setSearch("");
+  }
+
+  return (
+    <div className="field model-picker" onKeyDown={(e) => {
+      if (e.key === "Escape" && open) { e.stopPropagation(); setOpen(false); toggleRef.current?.focus(); }
+    }}>
+      <label className="field-label" htmlFor={inputId}>Allowed models</label>
+      <div className="model-picker-input">
+        <input id={inputId} value={value} onFocus={() => setOpen(true)} onChange={(e) => {
+          const text = e.target.value;
+          onChange(text);
+          setSearch(text.split(",").pop()?.trim() ?? "");
+          setOpen(true);
+        }} placeholder="All models · type to search" aria-describedby={`${inputId}-hint`} />
+        <button ref={toggleRef} type="button" className="model-picker-toggle" aria-label={open ? "Close model list" : "Browse models"} aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={() => { setSearch(""); setOpen(!open); }}>
+          <span aria-hidden="true">{open ? "▴" : "▾"}</span>
+        </button>
+      </div>
+      <span id={`${inputId}-hint`} className="field-hint">Optional. Enter comma-separated model IDs or patterns such as <code>claude/*</code>. Blank allows every model.</span>
+      {open && (
+        <div className="model-picker-panel" id={panelId}>
+          <div className="model-picker-header">
+            <div><strong>Available models</strong><div className="field-hint">Select models to add or remove them.</div></div>
+            <span className="model-picker-count">{selected.length ? `${selected.length} selected` : "All allowed"}</span>
+          </div>
+          <div className="model-picker-list">
+            {groups.size === 0 && <p className="model-picker-empty">No matching models. You can still enter an ID or pattern above.</p>}
+            {Array.from(groups, ([provider, items]) => (
+              <div key={provider} className="model-picker-group" role="group" aria-label={`${provider} models`}>
+                <div className="model-picker-group-name">{provider}</div>
+                {items.map((model) => (
+                  <label className="model-picker-option" key={model}>
+                    <input type="checkbox" checked={selectedSet.has(model)} onChange={() => toggle(model)} />
+                    <span>{model}</span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function KeyDialog({ users, user, editing, models, onClose, onDone }: {
   users: UserRow[]; user?: UserRow; editing?: KeyRow; models: string[]; onClose: () => void; onDone: (key: string, user: string) => void;
 }) {
@@ -393,14 +459,7 @@ function KeyDialog({ users, user, editing, models, onClose, onDone }: {
             <input type="datetime-local" value={expires} onChange={(e) => setExpires(e.target.value)} />
           </Field>
         </div>
-        <Field label="Allowed models" hint={<>Optional, comma separated. Exact ids or patterns such as <code>claude/*</code>. Blank allows every model.</>}>
-          <input value={allowed} onChange={(e) => setAllowed(e.target.value)} placeholder="all models" list="model-ids" />
-        </Field>
-        <datalist id="model-ids">
-          {models.map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
+        <ModelPicker value={allowed} onChange={setAllowed} models={models} />
         <ErrorNote message={err} />
         <div className="modal-foot">
           <button type="button" className="ghost" onClick={onClose}>

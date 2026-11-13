@@ -205,6 +205,14 @@ verify for Linux, so pass its install command from Google's docs as `AGY_INSTALL
 4. **API keys & users** → add a user, add credits, create a key (shown once; stored hashed).
 5. **Playground** → chat with any enabled model, or see **API quick start** in the UI for copy-paste client code.
 
+**Codex model discovery:** An enabled Codex CLI provider using the shared host CLI login discovers the
+visible models from Codex app-server at startup and every 30 minutes. Use **Refresh discovered models**
+on its provider card to refresh immediately. Discovered models appear in key suggestions and `/v1/models`
+and can be routed like manually configured models. The list is separate from **Models offered**; failed
+refreshes retain the last successful list. Discovery requires an authenticated host login and is not run
+for API-key or isolated per-user logins, where models must still be configured manually. Model availability
+is ultimately determined by Codex and the account; discovery is not a guarantee of access.
+
 Custom CLIs: *Add custom CLI* → program path, arguments (`{prompt}`, `{model}`, `{system}`), output format
 `text|json|ndjson` and a JSONPath to the answer.
 

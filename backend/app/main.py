@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import secrets
 import os
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -51,6 +53,22 @@ def load_admin_token() -> str:
     return tok
 
 
+async def refresh_codex_models_periodically() -> None:
+    from .codex_discovery import DiscoveryError, eligible, refresh_provider
+
+    while True:
+        with session_scope() as session:
+            names = [p.name for p in session.scalars(select(Provider).where(Provider.kind == "codex")) if eligible(p)]
+        for name in names:
+            try:
+                await refresh_provider(name)
+            except DiscoveryError as exc:
+                log("codex.model_discovery_failed", provider=name, error=str(exc))
+            except Exception as exc:  # Keep background discovery from taking down the proxy.
+                log("codex.model_discovery_failed", provider=name, error=type(exc).__name__)
+        await asyncio.sleep(1800)
+
+
 def create_app() -> FastAPI:
     setup_logging()
     s = get_settings()
@@ -72,7 +90,13 @@ def create_app() -> FastAPI:
             raise RuntimeError(f"unknown PROXY_QUEUE_BACKEND {s.queue_backend!r} (use local or redis)")
         app.state.service = ServiceState(queue=queue)
         log("startup", host=s.host, port=s.port, db=s.db_url.split(":")[0], queue=s.queue_backend)
-        yield
+        discovery_task = asyncio.create_task(refresh_codex_models_periodically())
+        try:
+            yield
+        finally:
+            discovery_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await discovery_task
 
     app = FastAPI(title="AgentBridge", lifespan=lifespan, docs_url="/docs", redoc_url=None)
 

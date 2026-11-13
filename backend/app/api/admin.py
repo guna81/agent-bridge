@@ -82,12 +82,23 @@ class ProviderCreate(ProviderPatch):
 
 
 def _apply(p: Provider, patch: ProviderPatch) -> None:
+    from ..codex_discovery import fingerprint
+
     s = get_settings()
+    old_fingerprint = fingerprint(p)
     data = patch.model_dump(exclude_unset=True)
+    if "extra" in data and p.kind == "codex":
+        # Discovery is managed by the server, not editable provider extras.
+        discovered = (p.extra or {}).get("discovered_models")
+        data["extra"] = {k: v for k, v in (data["extra"] or {}).items() if k != "discovered_models"}
+        if discovered is not None:
+            data["extra"]["discovered_models"] = discovered
     for k, v in data.items():
         if k in ("name", "kind"):
             continue
         setattr(p, k, v)
+    if p.kind == "codex" and fingerprint(p) != old_fingerprint:
+        p.extra = {k: v for k, v in (p.extra or {}).items() if k != "discovered_models"}
     if p.auth_mode == "oauth_cli" and not s.single_user_personal_use:
         raise ProxyError(400, "oauth_cli requires PROXY_SINGLE_USER_PERSONAL_USE=true (consumer-subscription OAuth is for "
                               "single-user personal use only).", code="oauth_disabled")  # fmt: skip
@@ -258,6 +269,18 @@ async def provider_status(name: str, user_id: int = Query(0)):
 class TestBody(BaseModel):
     prompt: str = "Say hello in five words."
     model: str | None = None
+
+
+@router.post("/providers/{name}/discover-models")
+async def discover_provider_models(name: str):
+    from ..codex_discovery import DiscoveryError, refresh_provider
+
+    try:
+        await refresh_provider(name)
+    except DiscoveryError as exc:
+        raise ProxyError(400, str(exc), code="model_discovery_failed") from None
+    with session_scope() as s:
+        return provider_out(_get_provider(s, name))
 
 
 @router.post("/providers/{name}/test")

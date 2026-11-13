@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { admin, AdminSettings, ApiError, Provider, Status, TestResult } from "../api";
+import { admin, AdminSettings, ApiError, discoveredModels, Provider, Status, TestResult } from "../api";
 import ConnectModal from "../components/ConnectModal";
 import { Confirm, ErrorNote, Field, Modal, Pill } from "../components/ui";
 
@@ -52,7 +52,7 @@ export default function Providers({ settings }: { settings: AdminSettings }) {
       <ErrorNote message={error} />
 
       {providers.map((p) => (
-        <ProviderCard key={p.name} p={p} settings={settings} onChanged={load} />
+        <ProviderCard key={p.name} p={p} settings={settings} onChanged={load} onDiscovered={(updated) => setProviders((current) => current.map((provider) => provider.name === updated.name ? { ...provider, extra: { ...provider.extra, discovered_models: updated.extra?.discovered_models } } : provider))} />
       ))}
       {adding && (
         <CustomForm
@@ -68,7 +68,7 @@ export default function Providers({ settings }: { settings: AdminSettings }) {
   );
 }
 
-function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: AdminSettings; onChanged: () => void }) {
+function ProviderCard({ p, settings, onChanged, onDiscovered }: { p: Provider; settings: AdminSettings; onChanged: () => void; onDiscovered: (p: Provider) => void }) {
   const [open, setOpen] = useState(false);
   const [d, setD] = useState<Provider>(p);
   const [modelsText, setModelsText] = useState(p.models.join(", "));
@@ -82,6 +82,8 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
   const [test, setTest] = useState<TestResult | null>(null);
   const [testPrompt, setTestPrompt] = useState("Say hello in five words.");
   const [busy, setBusy] = useState("");
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveryMsg, setDiscoveryMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [connect, setConnect] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [userId, setUserId] = useState(0);
@@ -112,6 +114,11 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
       const models = modelsText.split(",").map((s) => s.trim()).filter(Boolean);
       const extra = JSON.parse(extraText || "{}");
       if (!extra || typeof extra !== "object" || Array.isArray(extra)) throw new Error("Extra config must be a JSON object.");
+      // Discovery is managed separately; never save a stale copy from the JSON editor.
+      if (p.kind === "codex") {
+        if (p.extra?.discovered_models !== undefined) extra.discovered_models = p.extra.discovered_models;
+        else delete extra.discovered_models;
+      }
       const rates: Record<string, number[]> = {};
       for (const line of pricingText.split("\n")) {
         if (!line.trim()) continue;
@@ -143,6 +150,21 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
       if (patch) setD(p); // undo the optimistic toggle
     } finally {
       setBusy("");
+    }
+  }
+
+  async function discover() {
+    setDiscovering(true);
+    setDiscoveryMsg(null);
+    try {
+      const updated = await admin<Provider>("POST", `/providers/${encodeURIComponent(p.name)}/discover-models`);
+      onDiscovered(updated);
+      const count = discoveredModels(updated).length;
+      setDiscoveryMsg({ ok: true, text: `Model discovery refreshed: ${count} model${count === 1 ? "" : "s"} found. Unsaved edits are unchanged.` });
+    } catch (e) {
+      setDiscoveryMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setDiscovering(false);
     }
   }
 
@@ -201,7 +223,7 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
             <input
               type="checkbox"
               checked={d.enabled}
-              disabled={busy === "save"}
+              disabled={!!busy || discovering}
               aria-label={`${p.name} enabled`}
               onChange={(e) => {
                 set("enabled", e.target.checked);
@@ -286,6 +308,18 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
           <Field label="Models offered" hint={<>Comma separated. Callers request <code>{p.name}/&lt;model&gt;</code>.{["codex", "gemini"].includes(p.kind) && <> <code>default</code> lets the CLI pick its own model.</>}</>}>
             <input value={modelsText} onChange={(e) => setModelsText(e.target.value)} />
           </Field>
+          {p.kind === "codex" && (
+            <div>
+              <div className="row">
+                <button className="ghost small" onClick={() => void discover()} disabled={discovering || !!busy}>
+                  {discovering ? "Refreshing models…" : "Refresh discovered models"}
+                </button>
+                <span className="muted small">Uses saved provider settings; manual models and unsaved edits are unchanged.</span>
+              </div>
+              <p className="muted small">Discovered models ({discoveredModels(p).length}): {discoveredModels(p).join(", ") || "None"}</p>
+              {discoveryMsg && <p role="status" className={discoveryMsg.ok ? "ok-text" : "bad-text"}>{discoveryMsg.text}</p>}
+            </div>
+          )}
 
           <h3>Behaviour</h3>
           <div className="choice" role="radiogroup" aria-label="Mode">
@@ -324,6 +358,7 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
             <summary>Advanced settings (JSON)</summary>
             <textarea className="mono" value={extraText} onChange={(e) => setExtraText(e.target.value)} spellCheck={false} />
             <p className="muted small">
+              {p.kind === "codex" && <>The <code>discovered_models</code> field is managed by model discovery; changes to it here are ignored. </>}
               Agent mode: <code>workdir</code> (run in a fixed project folder instead of a temp folder), <code>extra_args</code> (extra CLI flags, e.g.{" "}
               <code>["--agent", "reviewer"]</code>). Custom CLI: <code>args_template</code>, <code>output_format</code>, <code>json_path</code>, <code>stdin</code>,{" "}
               <code>use_pty</code>, <code>login_argv</code>. Direct API: <code>base_url</code>, <code>direct_model_map</code>. Pricing rates are edited above and override the JSON field.
@@ -331,7 +366,7 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
           </details>
 
           <div className="row form-foot">
-            <button className="primary" onClick={() => void save()} disabled={busy === "save"}>
+            <button className="primary" onClick={() => void save()} disabled={!!busy || discovering}>
               {busy === "save" ? "Saving…" : "Save changes"}
             </button>
             {msg && <span className={msg.ok ? "ok-text" : "bad-text"}>{msg.text}</span>}
@@ -353,7 +388,7 @@ function ProviderCard({ p, settings, onChanged }: { p: Provider; settings: Admin
             }}
           >
             <input className="grow" value={testPrompt} onChange={(e) => setTestPrompt(e.target.value)} aria-label="Test prompt" />
-            <button type="submit" className="ghost" disabled={busy === "test" || !testPrompt.trim()}>
+            <button type="submit" className="ghost" disabled={!!busy || discovering || !testPrompt.trim()}>
               {busy === "test" ? "Running…" : "Run test"}
             </button>
           </form>
