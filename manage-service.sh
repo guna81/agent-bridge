@@ -8,6 +8,32 @@ set -e
 #   - Linux (systemd user service with linger, or supervisor fallback)
 # ==============================================================================
 
+# Personal installations use the CLI as the single service owner. Keep the
+# legacy server manager available explicitly for existing multi-user deployments.
+if [ "${AGENTBRIDGE_LEGACY_SERVICE:-0}" != "1" ]; then
+    REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if command -v agentbridge >/dev/null 2>&1; then
+        CLI=(agentbridge)
+    else
+        CLI=("$REPO_DIR/agentbridge")
+    fi
+    case "${1:-status}" in
+        install) "${CLI[@]}" start; exec "${CLI[@]}" autostart enable ;;
+        start|stop|status) exec "${CLI[@]}" "${1:-status}" ;;
+        restart) "${CLI[@]}" stop; exec "${CLI[@]}" start ;;
+        uninstall) "${CLI[@]}" autostart disable; exec "${CLI[@]}" stop ;;
+        logs) exec tail -n 50 -f "${AGENTBRIDGE_HOME:-$HOME/.agentbridge}/service.log" ;;
+        menubar)
+            case "${2:-start}" in
+                build) exec bash "$REPO_DIR/menubar/build.sh" ;;
+                start) exec "${CLI[@]}" start ;;
+                status) exec "${CLI[@]}" status ;;
+                *) echo "Use the dashboard to hide the indicator, or agentbridge stop to stop it." >&2; exit 1 ;;
+            esac ;;
+        *) echo "Usage: $0 {install|start|stop|restart|status|logs|menubar|uninstall}" >&2; exit 1 ;;
+    esac
+fi
+
 SERVICE_NAME="ai-credit-proxy"
 MACOS_LABEL="com.ai-credit-proxy"
 

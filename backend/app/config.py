@@ -62,7 +62,3 @@ def get_settings() -> Settings:
     s = Settings()
     s.data_dir.mkdir(parents=True, exist_ok=True)
     return s
-
-
-def reset_settings_cache() -> None:
-    get_settings.cache_clear()

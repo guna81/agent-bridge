@@ -195,7 +195,14 @@ class AppConfig {
     }
     
     var dashboardURL: URL {
-        URL(string: "http://\(host):\(port)")!
+        var components = URLComponents(string: "http://\(host):\(port)/")!
+        if !adminToken.isEmpty {
+            // Match the CLI dashboard handoff. Fragments stay out of HTTP requests.
+            var fragment = URLComponents()
+            fragment.queryItems = [URLQueryItem(name: "admin_token", value: adminToken)]
+            components.percentEncodedFragment = fragment.percentEncodedQuery
+        }
+        return components.url!
     }
 }
 

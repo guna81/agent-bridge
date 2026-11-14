@@ -80,29 +80,31 @@ def live(wrappers):
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
     t = threading.Thread(target=server.run, daemon=True)
     t.start()
-    base = f"http://127.0.0.1:{port}"
-    for _ in range(100):
-        try:
-            if httpx.get(base + "/healthz", timeout=1).status_code == 200:
-                break
-        except httpx.HTTPError:
-            time.sleep(0.1)
-    else:
-        raise RuntimeError("server did not start")
+    try:
+        base = f"http://127.0.0.1:{port}"
+        for _ in range(100):
+            try:
+                if httpx.get(base + "/healthz", timeout=1).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                time.sleep(0.1)
+        else:
+            raise RuntimeError("server did not start")
 
-    lv = Live(base, "", 0, wrappers)
-    lv.user_id, lv.key = lv.new_user("tester", 5.0)
-    common = {"enabled": True, "mode": "raw", "auth_mode": "api_key"}
-    lv.admin("PUT", "/providers/claude", json={**common, "binary_path": wrappers["claude"]})
-    lv.admin("PUT", "/providers/agy", json={**common, "binary_path": wrappers["agy"]})
-    lv.admin("PUT", "/providers/codex", json={**common, "binary_path": wrappers["codex"]})
-    lv.admin("PUT", "/providers/gemini", json={**common, "binary_path": wrappers["gemini"]})
-    lv.admin("POST", "/providers", json={
-        "name": "txt", "kind": "custom", **common, "binary_path": wrappers["text"], "default_model": "t1", "models": ["t1"],
-        "extra": {"args_template": ["{prompt}"], "output_format": "text"}})  # fmt: skip
-    yield lv
-    server.should_exit = True
-    t.join(timeout=5)
+        lv = Live(base, "", 0, wrappers)
+        lv.user_id, lv.key = lv.new_user("tester", 5.0)
+        common = {"enabled": True, "mode": "raw", "auth_mode": "api_key"}
+        lv.admin("PUT", "/providers/claude", json={**common, "binary_path": wrappers["claude"]})
+        lv.admin("PUT", "/providers/agy", json={**common, "binary_path": wrappers["agy"]})
+        lv.admin("PUT", "/providers/codex", json={**common, "binary_path": wrappers["codex"]})
+        lv.admin("PUT", "/providers/gemini", json={**common, "binary_path": wrappers["gemini"]})
+        lv.admin("POST", "/providers", json={
+            "name": "txt", "kind": "custom", **common, "binary_path": wrappers["text"], "default_model": "t1", "models": ["t1"],
+            "extra": {"args_template": ["{prompt}"], "output_format": "text"}})  # fmt: skip
+        yield lv
+    finally:
+        server.should_exit = True
+        t.join(timeout=5)
 
 
 @pytest.fixture(scope="session")

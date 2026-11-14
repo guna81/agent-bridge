@@ -26,7 +26,7 @@ if sys.platform != 'darwin':
         env['PYSTRAY_BACKEND'] = 'dummy'  # The build runner may not have a display.
         command += ['--hidden-import', 'pystray._xorg']
     elif os.name == 'nt':
-        command += ['--hidden-import', 'pystray._win32']
+        command += ['--hidden-import', 'pystray._win32', '--collect-all', 'winpty']
 command.append(str(root / 'scripts' / 'frozen_entry.py'))
 subprocess.run(command, check=True, env=env)
 package = out / 'agentbridge'

@@ -5,6 +5,16 @@ import socket
 import subprocess
 import sys
 from types import SimpleNamespace
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolate_login_registration(tmp_path, monkeypatch):
+    # Unit tests must never inspect or uninstall the real user's login job.
+    from app import cli
+    monkeypatch.setattr(cli, 'DATA', tmp_path / 'agentbridge-data')
+    monkeypatch.setattr(cli, 'STATE', tmp_path / 'agentbridge-data/service.json')
+    monkeypatch.setattr(cli, 'CONFIG', tmp_path / 'agentbridge-data/config.json')
 
 
 def test_cli_start_and_stop(tmp_path):

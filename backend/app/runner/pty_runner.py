@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import re
 import signal
 import struct
 import subprocess
+import sys
+import threading
 
 try:
     import fcntl
@@ -54,9 +57,18 @@ class PtySession:
         self._q: asyncio.Queue[bytes | None] = asyncio.Queue()
         self._loop: asyncio.AbstractEventLoop | None = None
         self.returncode: int | None = None
+        self._windows = None
 
     async def start(self) -> None:
         self._loop = asyncio.get_running_loop()
+        if sys.platform == "win32":
+            from winpty import PtyProcess
+            self._windows = await asyncio.to_thread(
+                PtyProcess.spawn, self.argv, cwd=self.cwd, env=self.env,
+                dimensions=(self.rows, self.cols),
+            )
+            threading.Thread(target=self._windows_reader, daemon=True).start()
+            return
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", self.rows, self.cols, 0, 0))
         stdin = slave if self.interactive else subprocess.DEVNULL
@@ -65,11 +77,26 @@ class PtySession:
                 self.argv, stdin=stdin, stdout=slave, stderr=slave, cwd=self.cwd, env=self.env,
                 start_new_session=True, close_fds=True,
             )  # fmt: skip
+        except BaseException:
+            os.close(master)
+            raise
         finally:
             os.close(slave)
         self._master = master
         os.set_blocking(master, False)
         self._loop.add_reader(master, self._on_readable)
+
+    def _windows_reader(self) -> None:
+        try:
+            while True:
+                text = self._windows.read()
+                if text:
+                    self._loop.call_soon_threadsafe(self._q.put_nowait, text.encode("utf-8"))
+        except (EOFError, OSError):
+            pass
+        finally:
+            if not self._loop.is_closed():
+                self._loop.call_soon_threadsafe(self._q.put_nowait, None)
 
     def _on_readable(self) -> None:
         try:
@@ -95,6 +122,9 @@ class PtySession:
         return await self._q.get()
 
     def write(self, data: bytes) -> None:
+        if self._windows is not None:
+            self._windows.write(data.decode("utf-8", "replace"))
+            return
         if self._master >= 0:
             try:
                 os.write(self._master, data)
@@ -102,10 +132,23 @@ class PtySession:
                 pass
 
     def resize(self, rows: int, cols: int) -> None:
+        if self._windows is not None:
+            self._windows.setwinsize(rows, cols)
+            return
         if self._master >= 0:
             fcntl.ioctl(self._master, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
     async def wait(self, timeout: float = 5.0) -> int | None:
+        if self._windows is not None:
+            async def exited():
+                while self._windows.isalive():
+                    await asyncio.sleep(0.05)
+                return self._windows.exitstatus
+            try:
+                self.returncode = await asyncio.wait_for(exited(), timeout)
+            except asyncio.TimeoutError:
+                return None
+            return self.returncode
         assert self._proc is not None
         loop = asyncio.get_running_loop()
         try:
@@ -115,6 +158,24 @@ class PtySession:
         return self.returncode
 
     async def close(self) -> None:
+        if self._windows is not None:
+            import psutil
+            try:
+                process = psutil.Process(self._windows.pid) if self._windows.isalive() else None
+                for child in process.children(recursive=True) if process else ():
+                    with contextlib.suppress(psutil.NoSuchProcess):
+                        child.kill()
+                if process:
+                    process.kill()
+            except psutil.NoSuchProcess:
+                pass
+            await self.wait(3)
+            await asyncio.to_thread(self._windows.close, True)
+            # PtyProcess marks itself closed when isalive() detects exit, which
+            # can bypass its socket cleanup. Always release those handles.
+            self._windows.fileobj.close()
+            self._windows._server.close()
+            return
         self._remove_reader()
         p = self._proc
         if p is not None:
