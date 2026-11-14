@@ -52,6 +52,9 @@ struct ScopedLimitWindow: Decodable {
 }
 
 struct ProviderRateLimits: Decodable {
+    let updated_at: UsageTimestamp?
+    let is_stale: Bool?
+    let refresh_error: String?
     let five_hour: LimitWindow?
     let weekly: LimitWindow?
     let weekly_scoped: ScopedLimitWindow?
@@ -59,6 +62,25 @@ struct ProviderRateLimits: Decodable {
     let claude_gpt_weekly: LimitWindow?
     let plan_name: String?
     let tier_id: String?
+}
+
+// Codex reports ISO timestamps, while Claude and Antigravity report epoch seconds.
+enum UsageTimestamp: Decodable {
+    case epoch(Double)
+    case iso(String)
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer()
+        if let seconds = try? value.decode(Double.self) { self = .epoch(seconds) }
+        else { self = .iso(try value.decode(String.self)) }
+    }
+
+    var date: Date? {
+        switch self {
+        case .epoch(let seconds): return Date(timeIntervalSince1970: seconds)
+        case .iso(let text): return ISO8601DateFormatter().date(from: text)
+        }
+    }
 }
 
 struct StatusBarServerConfig: Decodable {
@@ -186,6 +208,7 @@ class StatusBarController: NSObject {
     private var isOffline: Bool = false
     private var lastSyncedServerPinnedMetric: String? = nil
     private var pollingInterval: TimeInterval = 0
+    private var isFetching = false
     
     // Preferences: agent ("codex", "claude", "antigravity"), metric ("session", "weekly", etc.)
     private var selectedAgent: String {
@@ -230,25 +253,36 @@ class StatusBarController: NSObject {
         guard timer == nil || pollingInterval != interval else { return }
         timer?.invalidate()
         pollingInterval = interval
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        let refreshTimer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.fetchData()
         }
+        // Menu tracking uses a different run-loop mode from the default mode.
+        RunLoop.main.add(refreshTimer, forMode: .common)
+        timer = refreshTimer
     }
     
     // MARK: - Data Fetching
     
     private func fetchData() {
-        var req = URLRequest(url: AppConfig.shared.endpointURL)
-        req.timeoutInterval = 2.5
+        // Config-save callbacks also call this method from URLSession workers.
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.fetchData() }
+            return
+        }
+        guard !isFetching else { return }
+        isFetching = true
+        var req = URLRequest(url: AppConfig.shared.endpointURL, cachePolicy: .reloadIgnoringLocalCacheData)
+        req.timeoutInterval = 10
         let token = AppConfig.shared.adminToken
         if !token.isEmpty {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         
-        let task = URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
+        let task = URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
             guard let self = self else { return }
+            DispatchQueue.main.async { self.isFetching = false }
             
-            if error != nil {
+            if error != nil || !(200..<300).contains((response as? HTTPURLResponse)?.statusCode ?? 0) {
                 DispatchQueue.main.async {
                     self.isOffline = true
                     self.updateUI()
@@ -491,6 +525,16 @@ class StatusBarController: NSObject {
             let header = NSMenuItem(title: name, action: nil, keyEquivalent: "")
             menu.addItem(header)
             let limits = latestData?.rate_limits?[id] ?? nil
+            if id == "claude", let limits = limits {
+                var freshness = limits.is_stale == true ? "Stale usage" : "Usage updated"
+                if let date = limits.updated_at?.date {
+                    freshness += " " + DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .short)
+                }
+                menu.addItem(NSMenuItem(title: "  \(freshness)", action: nil, keyEquivalent: ""))
+                if let error = limits.refresh_error {
+                    menu.addItem(NSMenuItem(title: "  \(error)", action: nil, keyEquivalent: ""))
+                }
+            }
             for (label, window) in [("5-hour", limits?.five_hour), ("Weekly", limits?.weekly)] {
                 let detail: String
                 if let window = window {

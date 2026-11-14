@@ -181,6 +181,12 @@ export default function CliRateLimitsCard({ rateLimits, onOpenConfig, loading }:
                 <span className={`status-tag ${claude.five_hour || claude.weekly || claude.weekly_scoped ? "ok" : ""}`}>{claude.five_hour || claude.weekly || claude.weekly_scoped ? "Available" : "Unavailable"}</span>
               </div>
               <div className="gauges-list">
+                <span className="muted xsmall">
+                  {claude.is_stale ? "Stale usage. " : ""}
+                  {claude.updated_at ? `Last updated: ${new Date(claude.updated_at * 1000).toLocaleString()}. ` : "Update time unavailable. "}
+                  {claude.refreshing ? "Refreshing…" : "Automatically refreshes every 2 minutes."}
+                </span>
+                {claude.refresh_error && <span className="muted xsmall">{claude.refresh_error}</span>}
                 {claude.five_hour ? <GaugeBar
                   label="Current Session"
                   leftPercent={claude.five_hour.left_percent}

@@ -147,7 +147,7 @@ async def update_status_bar_config(body: dict):
 
 
 @router.get("/status-bar")
-async def get_status_bar_data(request: Request):
+def get_status_bar_data(request: Request):
     from ..rate_limits_reader import get_all_cli_rate_limits
     from ..status_bar_config import load_status_bar_config
 

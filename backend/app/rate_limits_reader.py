@@ -55,6 +55,8 @@ def _codex_session_rate_limits() -> dict | None:
         key = "five_hour" if minutes == 300 else "weekly"
         used = max(0, min(100, used))
         reset = window.get("resets_at")
+        if isinstance(reset, (int, float)) and reset > 0 and reset <= time.time():
+            used = 0
         try:
             reset_str = dt.datetime.fromtimestamp(reset).strftime("%I:%M %p" if key == "five_hour" else "%I:%M %p on %d %b") if reset else None
         except (ValueError, OSError, OverflowError, TypeError):
@@ -145,19 +147,17 @@ def get_codex_rate_limits(custom_path: str | None = None) -> dict | None:
 
 
 def get_claude_rate_limits(custom_path: str | None = None) -> dict | None:
-    """Reads real-time session and weekly rate limits from Claude Code (~/.claude.json)."""
+    """Read Claude limits and refresh subscription usage in the background."""
+    from .claude_usage import usage_snapshot
     claude_json_path = os.path.expanduser(custom_path or "~/.claude.json")
-    if os.path.exists(claude_json_path):
+    if os.path.exists(claude_json_path) or not custom_path:
         try:
-            with open(claude_json_path, "r", encoding="utf-8") as f:
-                d = json.load(f)
-
-            cached = d.get("cachedUsageUtilization", {})
+            cached = usage_snapshot(claude_json_path, refresh=not custom_path)
             u = cached.get("utilization", {})
 
             if u:
-                five_h = u.get("five_hour", {})
-                seven_d = u.get("seven_day", {})
+                five_h = u.get("five_hour") or {}
+                seven_d = u.get("seven_day") or {}
 
                 five_used = int(five_h.get("utilization", 0))
                 five_left = max(0, 100 - five_used)
@@ -187,7 +187,7 @@ def get_claude_rate_limits(custom_path: str | None = None) -> dict | None:
                     except Exception:
                         return None
 
-                limits = u.get("limits", [])
+                limits = u.get("limits") or []
                 scoped_item = next((x for x in limits if x.get("kind") == "weekly_scoped"), None)
 
                 scoped_dict = None
@@ -213,6 +213,10 @@ def get_claude_rate_limits(custom_path: str | None = None) -> dict | None:
                         pass
 
                 return {
+                    "updated_at": cached.get("fetchedAtMs", 0) / 1000 or None,
+                    "is_stale": not cached.get("fetchedAtMs") or time.time() - cached["fetchedAtMs"] / 1000 > 300,
+                    "refreshing": cached.get("refreshing", False),
+                    "refresh_error": cached.get("refresh_error"),
                     "five_hour": {
                         "label": "Current session",
                         "used_percent": five_used,

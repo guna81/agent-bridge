@@ -571,6 +571,7 @@ def test_codex_session_limits_show_reported_windows(tmp_path, monkeypatch):
     import json
     from app.rate_limits_reader import get_codex_rate_limits
 
+    monkeypatch.setattr('app.rate_limits_reader.time.time', lambda: 1794600000)
     monkeypatch.setenv('HOME', str(tmp_path))
     sessions = tmp_path / '.codex' / 'sessions' / '2026' / '11' / '12'
     sessions.mkdir(parents=True)
@@ -582,6 +583,13 @@ def test_codex_session_limits_show_reported_windows(tmp_path, monkeypatch):
     assert limits['weekly']['used_percent'] == 4.5
     assert limits['weekly']['left_percent'] == 95.5
     assert limits['updated_at'] == event['timestamp']
+
+    # Session transcripts retain the last snapshot after a window resets.
+    monkeypatch.setattr('app.rate_limits_reader.time.time', lambda: 1794644414)
+    limits = get_codex_rate_limits()
+    assert limits['weekly']['used_percent'] == 0
+    assert limits['weekly']['left_percent'] == 100
+    assert limits['weekly']['is_exhausted'] is False
 
 
 def test_status_bar_cli_selection_migration_and_validation():
