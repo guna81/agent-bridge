@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'docs/index.html'
+      - 'docs/guide/**'
       - 'docs/assets/agentbridge-icon.svg'
       - 'backend/pyproject.toml'
       - 'scripts/pages-version.py'

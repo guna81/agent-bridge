@@ -3,7 +3,7 @@
 <h1 align="center">AgentBridge</h1>
 
 <p align="center">Track AI agent subscription usage and connect your tools to a local API gateway.</p>
-<p align="center"><a href="https://guna81.github.io/agent-bridge/">Website</a> · <a href="https://github.com/guna81/agent-bridge/releases/latest">Latest release</a> · <a href="docs/releases.md">Release guide</a></p>
+<p align="center"><a href="https://guna81.github.io/agent-bridge/">Website</a> · <a href="https://guna81.github.io/agent-bridge/guide/">Documentation</a> · <a href="https://github.com/guna81/agent-bridge/releases/latest">Latest release</a> · <a href="docs/releases.md">Release guide</a></p>
 
 AgentBridge brings two workflows together: monitor available subscription usage for supported coding agents, and expose configured agent CLIs through OpenAI-compatible and Anthropic-compatible APIs. The CLI runs a local gateway, opens a web dashboard, and can show usage in the macOS menu bar or a Windows or Linux system tray.
 
