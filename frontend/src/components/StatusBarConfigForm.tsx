@@ -4,11 +4,9 @@ import { StatusBarConfig } from "../api";
 interface Props {
   config: StatusBarConfig;
   onSave: (newCfg: StatusBarConfig) => Promise<void>;
-  onClose: () => void;
-  inline?: boolean;
 }
 
-export default function StatusBarConfigModal({ config, onSave, onClose, inline = false }: Props) {
+export default function StatusBarConfigForm({ config, onSave }: Props) {
   const [indicatorEnabled, setIndicatorEnabled] = useState(config.indicator_enabled ?? true);
   const [enabledProviders, setEnabledProviders] = useState(config.enabled_providers);
   const [selectedClis, setSelectedClis] = useState<string[]>(config.selected_clis || ["antigravity"]);
@@ -38,7 +36,6 @@ export default function StatusBarConfigModal({ config, onSave, onClose, inline =
         antigravity_ls_address: agyAddress.trim(),
         antigravity_csrf_token: agyToken.trim(),
       });
-      if (!inline) onClose();
     } catch (err) {
       setError((err as Error).message || "Failed to save configuration");
     } finally {
@@ -47,17 +44,16 @@ export default function StatusBarConfigModal({ config, onSave, onClose, inline =
   };
 
   return (
-    <div className={inline ? "status-settings-page" : "modal-backdrop"} onClick={inline ? undefined : onClose}>
-      <div className={inline ? "card config-modal" : "modal-card config-modal"} onClick={(e) => e.stopPropagation()}>
+    <div className="status-settings-page">
+      <div className="card config-modal">
         <div className="modal-header">
           <div>
             <h3>Usage tracking and indicator</h3>
             <p className="muted small">Configure usage tracking and the menu bar or system tray on this computer.</p>
           </div>
-          {!inline && <button className="close-btn" onClick={onClose}>&times;</button>}
         </div>
 
-        {error && <div className="error-note">{error}</div>}
+        {error && <div className="error-note" role="alert">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="indicator-setting">
@@ -185,9 +181,6 @@ export default function StatusBarConfigModal({ config, onSave, onClose, inline =
           </details>
 
           <div className="modal-actions">
-            {!inline && <button type="button" className="ghost" onClick={onClose} disabled={saving}>
-              Cancel
-            </button>}
             <button type="submit" className="primary" disabled={saving}>
               {saving ? "Saving…" : "Save settings"}
             </button>

@@ -54,6 +54,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
+      - run: npm test
 
 
   windows-cli:
@@ -66,4 +67,4 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --python 3.12
       - name: CLI and tray tests
-        run: uv run pytest tests/test_cli_manager.py tests/test_tray.py tests/test_autostart.py -q
+        run: uv run pytest tests/test_cli_manager.py tests/test_tray.py tests/test_autostart.py tests/test_windows_terminal.py -q

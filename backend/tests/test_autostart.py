@@ -83,7 +83,7 @@ def test_macos_registration_requires_loaded_and_enabled_job(tmp_path, monkeypatc
     launcher.touch()
     with path.open('wb') as stream:
         plistlib.dump({'Label': autostart.LABEL, 'ProgramArguments': [str(launcher), 'start'],
-                       'RunAtLoad': True, 'EnvironmentVariables': {'AGENTBRIDGE_HOME': str(data)}}, stream)
+                       'RunAtLoad': True, 'AbandonProcessGroup': True, 'EnvironmentVariables': {'AGENTBRIDGE_HOME': str(data)}}, stream)
 
     def launchctl(command, **kwargs):
         if command[1] == 'print':
@@ -258,3 +258,51 @@ def test_windows_user_login_entry(tmp_path, monkeypatch):
     assert autostart.is_registered(data)
     autostart.unregister(data)
     assert not script.exists() and 'AgentBridge' not in values
+
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='Unix LaunchAgent paths')
+def test_macos_register_replaces_corrupt_plist_and_survives_job_exit(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    launcher = tmp_path / 'launcher'
+    launcher.touch()
+    path = tmp_path / 'Library/LaunchAgents' / f'{autostart.LABEL}.plist'
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b'<?xml version="1.0"?><plist><dict>')
+    monkeypatch.setattr(autostart.subprocess, 'run', lambda command, **kwargs: SimpleNamespace(
+        returncode=int(command[1] == 'print'), stdout='', stderr=''))
+    autostart.register(launcher, tmp_path / 'data')
+    plist = plistlib.loads(path.read_bytes())
+    assert plist['ProgramArguments'] == [str(launcher), 'start']
+    assert plist['RunAtLoad'] and plist['AbandonProcessGroup']
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='Unix LaunchAgent paths')
+def test_macos_upgrade_reloads_old_registration_and_preserves_settings(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    launcher = tmp_path / 'bin/agentbridge'
+    launcher.parent.mkdir()
+    launcher.touch()
+    data = tmp_path / 'app data'
+    data.mkdir()
+    config = data / 'config.json'
+    config.write_text('{"port":43210,"autostart":true}')
+    path = tmp_path / 'Library/LaunchAgents' / f'{autostart.LABEL}.plist'
+    path.parent.mkdir(parents=True)
+    path.write_bytes(plistlib.dumps({'Label': autostart.LABEL, 'ProgramArguments': [str(launcher), 'start'],
+                                    'RunAtLoad': True, 'EnvironmentVariables': {'AGENTBRIDGE_HOME': str(data)}}))
+    calls = []
+    def launchctl(command, **kwargs):
+        calls.append(command[1])
+        return SimpleNamespace(returncode=0, stdout='\tstate = waiting\n' if command[1] == 'print' else '', stderr='')
+    monkeypatch.setattr(autostart.subprocess, 'run', launchctl)
+    assert not autostart.is_registered(data)
+    autostart.register(launcher, data, enable_disabled=True)
+    upgraded = plistlib.loads(path.read_bytes())
+    assert upgraded['AbandonProcessGroup'] is True
+    assert upgraded['ProgramArguments'] == [str(launcher), 'start']
+    assert autostart.GENERATION in upgraded['EnvironmentVariables']
+    assert calls == ['enable', 'print', 'bootout', 'bootstrap']
+    assert json.loads(config.read_text()) == {'port': 43210, 'autostart': True}

@@ -1,0 +1,26 @@
+# Dashboard
+
+Open it with `agentbridge dashboard`. The command signs you in automatically: the token travels in a URL fragment, which the browser never sends to the server and the dashboard removes after loading.
+
+## Pages
+
+| Page | Use it to |
+|---|---|
+| **Overview** | See credits and budget warnings. Warns when available credits drop below $1 or a key has used 80% of a budget. Optional browser alerts need browser permission and the page to be open; checks refresh every minute. |
+| **Subscription usage** | View 5-hour and weekly limits and reset times. See [Subscription usage](subscription-usage.md). |
+| **Status indicator** | Configure the menu bar or tray display. See [Status indicator](status-indicator.md). |
+| **Providers** | Enable providers, choose sign-in, models, default mode and advanced settings. See [Providers](providers.md). |
+| **API keys & users** | Add users, add credits, create and limit keys. See [Keys, users and budgets](keys-and-users.md). |
+| **Request usage** | Inspect request history, outstanding reservations and export CSV. |
+| **Playground** | Chat with any enabled model and estimate cost. |
+| **API quick start** | Copy-paste client code. |
+
+## Request usage
+
+The usage explorer filters by user, key, provider, model and UTC date, pages through results, and exports the loaded rows to CSV. Cost totals count only loaded billed rows; test runs are shown but not billed.
+
+It also lists **outstanding reservations** with a guarded release action. See [reservations](keys-and-users.md#reservations).
+
+## Cost estimates in the Playground
+
+The estimate uses approximate text token counts and an output-token assumption. It excludes image tokens and CLI prompt overhead and is not a spending guarantee. The same estimate is available from `GET /v1/estimate`.

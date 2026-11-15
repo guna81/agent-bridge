@@ -16,6 +16,11 @@ export interface Provider {
   has_api_key: boolean;
 }
 
+export function discoveredModels(provider: Provider): string[] {
+  const models = provider.extra?.discovered_models;
+  return provider.kind === "codex" && Array.isArray(models) ? models.filter((model): model is string => typeof model === "string") : [];
+}
+
 export interface Status {
   installed: boolean;
   version: string | null;
@@ -126,6 +131,10 @@ export interface ClaudeScopedLimit {
 }
 
 export interface ClaudeRateLimits {
+  updated_at?: number | null;
+  is_stale?: boolean;
+  refreshing?: boolean;
+  refresh_error?: string | null;
   five_hour: LimitWindow | null;
   weekly: LimitWindow | null;
   weekly_scoped: ClaudeScopedLimit | null;

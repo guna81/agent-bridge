@@ -27,6 +27,13 @@ def build_env(ctx: RunContext, extra: dict[str, str] | None = None, *, pty: bool
         "NO_COLOR": "1",
         "CI": "1",
     }
+    if os.name == "nt":
+        for name in ("SYSTEMROOT", "COMSPEC", "PATHEXT", "TEMP", "TMP"):
+            if name in os.environ:
+                env[name] = os.environ[name]
+        env["USERPROFILE"] = home
+        env["APPDATA"] = os.path.join(home, "AppData", "Roaming")
+        env["LOCALAPPDATA"] = os.path.join(home, "AppData", "Local")
     for name in filter(None, (n.strip() for n in s.cli_env_passthrough.split(","))):
         if name in os.environ:
             env[name] = os.environ[name]

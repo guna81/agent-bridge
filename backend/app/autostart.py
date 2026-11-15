@@ -8,6 +8,7 @@ import plistlib
 import re
 import subprocess
 import sys
+from xml.parsers.expat import ExpatError
 
 NAME = 'AgentBridge'
 LABEL = 'com.agentbridge.autostart'
@@ -39,20 +40,18 @@ def register(launcher: Path, data_dir: Path, *, enable_disabled=False):
         path = folder / f'{LABEL}.plist'
         if path.exists() and not enable_disabled:
             try:
-                with path.open('rb') as stream:
-                    owner = plistlib.load(stream).get('EnvironmentVariables', {}).get('AGENTBRIDGE_HOME')
-            except (OSError, ValueError, TypeError, AttributeError) as exc:
-                raise RuntimeError('Cannot inspect existing LaunchAgent; use autostart enable to replace it') from exc
+                owner = plistlib.loads(path.read_bytes()).get('EnvironmentVariables', {}).get('AGENTBRIDGE_HOME')
+            except (ValueError, TypeError, AttributeError, ExpatError):
+                owner = None  # A corrupt registration is replaced.
             if owner and owner != str(data_dir):
                 raise RuntimeError('LaunchAgent belongs to another data directory; use autostart enable to replace it')
-        plist = {'Label': LABEL, 'ProgramArguments': [str(launcher), 'start'], 'RunAtLoad': True,
+        plist = {'Label': LABEL, 'ProgramArguments': [str(launcher), 'start'], 'RunAtLoad': True, 'AbandonProcessGroup': True,
                  'EnvironmentVariables': {**env, 'PATH': os.environ.get('PATH', '/usr/local/bin:/usr/bin:/bin')},
                  'StandardOutPath': str(data_dir / 'autostart.log'), 'StandardErrorPath': str(data_dir / 'autostart.log')}
         # launchctl retains the old environment until a job is reloaded. A stable
         # fingerprint lets status distinguish that job from the plist on disk.
         plist['EnvironmentVariables'][GENERATION] = hashlib.sha256(plistlib.dumps(plist)).hexdigest()
-        with path.open('wb') as stream:
-            plistlib.dump(plist, stream)
+        path.write_bytes(plistlib.dumps(plist))
         domain = f'gui/{os.getuid()}'
         service = f'{domain}/{LABEL}'
         if enable_disabled:
@@ -123,7 +122,7 @@ def macos_plist(data_dir: Path):
             plist = plistlib.load(stream)
         if plist.get('EnvironmentVariables', {}).get('AGENTBRIDGE_HOME') == str(data_dir):
             return plist
-    except (OSError, ValueError, TypeError, AttributeError):
+    except (OSError, ValueError, TypeError, AttributeError, ExpatError):
         pass
     return None
 
@@ -170,7 +169,7 @@ def is_registered(data_dir: Path):
         if plist is None:
             return False
         args = plist.get('ProgramArguments')
-        if not isinstance(args, list) or len(args) != 2 or args[1] != 'start' or not isinstance(args[0], str) or not Path(args[0]).is_file() or not plist.get('RunAtLoad'):
+        if not isinstance(args, list) or len(args) != 2 or args[1] != 'start' or not isinstance(args[0], str) or not Path(args[0]).is_file() or not plist.get('RunAtLoad') or not plist.get('AbandonProcessGroup'):
             return False
         domain = f'gui/{os.getuid()}'
         try:

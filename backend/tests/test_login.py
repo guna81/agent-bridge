@@ -1,6 +1,8 @@
 import contextlib
 import json
 
+import pytest
+from websockets.exceptions import ConnectionClosedError
 from websockets.sync.client import connect
 
 from app.runner.pty_runner import extract_urls, strip_ansi
@@ -55,9 +57,15 @@ def _recv_until(ws, kind, timeout=15):
             return msgs
 
 
-def test_login_websocket_round_trip(live, login_wrapper):
+@pytest.fixture
+def login_provider(live, login_wrapper):
     live.admin("POST", "/providers", json={"name": "oauthy", "kind": "custom", "binary_path": login_wrapper, "default_model": "x",
                                            "models": ["x"], "extra": {"login_argv": ["--login"]}})  # fmt: skip
+    yield
+    live.admin("DELETE", "/providers/oauthy")
+
+
+def test_login_websocket_round_trip(live, login_provider):
     with _ws(live, "oauthy") as ws:
         msgs = _recv_until(ws, "url")
         url = msgs[-1]["url"]
@@ -69,7 +77,7 @@ def test_login_websocket_round_trip(live, login_wrapper):
     assert ex["code"] == 0 and ex["auth"]["installed"] is True
 
 
-def test_login_websocket_failure_exit_code(live, login_wrapper):
+def test_login_websocket_failure_exit_code(live, login_provider):
     with _ws(live, "oauthy") as ws:
         _recv_until(ws, "url")
         ws.send(json.dumps({"type": "input", "data": "wrong\r"}))
@@ -77,12 +85,10 @@ def test_login_websocket_failure_exit_code(live, login_wrapper):
 
 
 def test_login_websocket_requires_admin_token(live):
-    try:
+    with pytest.raises(ConnectionClosedError) as error:
         with _ws(live, "oauthy", token="nope") as ws:
             ws.recv(timeout=5)
-        assert False, "expected the server to refuse"
-    except Exception as e:  # noqa: BLE001
-        assert "4401" in str(e) or "closed" in str(e).lower() or "403" in str(e)
+    assert error.value.rcvd.code == 4401
 
 
 def test_login_websocket_unknown_provider_and_no_login_command(live, wrappers):
@@ -95,8 +101,6 @@ def test_login_websocket_unknown_provider_and_no_login_command(live, wrappers):
 # ---- real CLIs (opt in: RUN_REAL_CLI=1). They stop at the login prompt; nothing is authenticated. ----------------
 import os
 import shutil
-
-import pytest
 
 from app.config import get_settings
 
@@ -131,10 +135,8 @@ def test_real_agy_login_screen_in_isolated_home(live, monkeypatch):
 
 def test_login_websocket_ignores_token_in_url(live):
     """A token in the query string must not authenticate: the first frame has to be the auth message."""
-    try:
+    with pytest.raises(ConnectionClosedError) as error:
         with connect(live.base.replace("http", "ws") + "/admin/ws/login/oauthy?token=test-admin-token", open_timeout=10) as ws:
             ws.send(json.dumps({"type": "input", "data": "x"}))
             ws.recv(timeout=5)
-        assert False, "expected the server to refuse"
-    except Exception as e:  # noqa: BLE001
-        assert "4401" in str(e) or "closed" in str(e).lower()
+    assert error.value.rcvd.code == 4401

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Troubleshooting · AgentBridge Docs</title><link rel="icon" href="../assets/agentbridge-icon.svg">
+<style>
+:root{color-scheme:dark;--bg:#0c0d10;--surface:#15171c;--surface2:#1a1d24;--text:#f5f6f8;--muted:#a9afba;--accent:#8aafff;--line:#30343d}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+a{color:var(--accent)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+.brand{display:flex;gap:10px;align-items:center;font-weight:750;letter-spacing:-.03em;text-decoration:none;color:var(--text)}
+.brand img{width:30px;height:30px}.top nav a{color:var(--muted);text-decoration:none;font-size:.88rem;margin-left:20px}.top nav a:hover{color:var(--text)}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:48px;max-width:1160px;margin:auto;padding:0 24px}
+.side{position:sticky;top:67px;align-self:start;max-height:calc(100vh - 67px);overflow:auto;padding:28px 0}
+.side h4{margin:22px 0 6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.side h4:first-child{margin-top:0}
+.side a{display:block;padding:5px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:.9rem}
+.side a:hover{color:var(--text);background:var(--surface)}.side a.on{color:var(--accent);background:var(--surface2)}
+main{padding:36px 0 80px;min-width:0;max-width:820px}
+h1{font-size:2.4rem;letter-spacing:-.05em;line-height:1.15;margin:0 0 20px}
+h2{font-size:1.5rem;letter-spacing:-.03em;margin:44px 0 12px;padding-top:6px}
+h3{font-size:1.15rem;margin:30px 0 8px}
+p,li{color:#d6dae2}li{margin:4px 0}
+code{font:.85em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--surface2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:#d0ddf4}
+pre{background:#0b0d12;border:1px solid #303744;border-radius:10px;padding:16px;overflow:auto;position:relative}
+pre code{background:none;border:0;padding:0;font-size:.82rem;line-height:1.65}
+.copy{position:absolute;top:8px;right:8px;background:#2a3446;border:0;color:#e6ebf4;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:.72rem}
+.copy:hover{background:#3a4a63}
+table{border-collapse:collapse;width:100%;font-size:.9rem;display:block;overflow-x:auto;margin:16px 0}
+th,td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}th{background:var(--surface)}
+.admonition{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;background:var(--surface);padding:2px 16px;margin:20px 0}
+.admonition.warning{border-left-color:#e0a84a}.admonition.danger{border-left-color:#e06b6b}.admonition.tip{border-left-color:#5fc59a}
+.admonition-title{font-weight:700;margin:10px 0 0!important}
+details{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 16px;margin:10px 0}
+summary{cursor:pointer;padding:12px 0;font-weight:600}
+.tabbed-set{margin:18px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.tabbed-set>input{position:absolute;opacity:0;pointer-events:none}
+.tabbed-labels{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabbed-labels>label{padding:10px 16px;cursor:pointer;color:var(--muted);font-size:.88rem;font-weight:600;border-bottom:2px solid transparent}
+.tabbed-content>.tabbed-block{display:none;padding:0 16px 8px}
+.tabbed-block pre{margin:12px 0}
+.pager{display:flex;justify-content:space-between;gap:16px;margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-size:.9rem}
+footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var(--muted);font-size:.82rem}
+@media(max-width:820px){.layout{grid-template-columns:1fr;gap:0}.side{position:static;max-height:none;padding:16px 0;border-bottom:1px solid var(--line)}h1{font-size:1.9rem}.top nav a:not(:last-child){display:none}}
+.tabbed-set>input:nth-child(1):checked~.tabbed-labels>label:nth-child(1){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(1):checked~.tabbed-content>.tabbed-block:nth-child(1){display:block}.tabbed-set>input:nth-child(2):checked~.tabbed-labels>label:nth-child(2){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(2):checked~.tabbed-content>.tabbed-block:nth-child(2){display:block}.tabbed-set>input:nth-child(3):checked~.tabbed-labels>label:nth-child(3){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(3):checked~.tabbed-content>.tabbed-block:nth-child(3){display:block}.tabbed-set>input:nth-child(4):checked~.tabbed-labels>label:nth-child(4){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(4):checked~.tabbed-content>.tabbed-block:nth-child(4){display:block}.tabbed-set>input:nth-child(5):checked~.tabbed-labels>label:nth-child(5){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(5):checked~.tabbed-content>.tabbed-block:nth-child(5){display:block}.tabbed-set>input:nth-child(6):checked~.tabbed-labels>label:nth-child(6){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(6):checked~.tabbed-content>.tabbed-block:nth-child(6){display:block}</style></head><body>
+<header class="top"><a class="brand" href="../"><img src="../assets/agentbridge-icon.svg" alt="">AgentBridge</a>
+<nav><a href="index.html">Docs</a><a href="https://github.com/guna81/agent-bridge/releases/latest">Releases</a><a href="https://github.com/guna81/agent-bridge">GitHub</a></nav></header>
+<div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html">Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html">Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html">Deployment</a><a href="troubleshooting.html" class=on>Troubleshooting</a><a href="releases.html">Releases</a></aside>
+<main><h1 id="troubleshooting">Troubleshooting</h1>
+<h2 id="first-checks">First checks</h2>
+<div class="highlight"><pre><span></span><code>agentbridge<span class="w"> </span>status<span class="w">          </span><span class="c1"># gateway health and address</span>
+curl<span class="w"> </span>http://127.0.0.1:43187/healthz<span class="w">     </span><span class="c1"># should return 200</span>
+</code></pre></div>
+<h2 id="logs">Logs</h2>
+<table>
+<thead>
+<tr>
+<th>Log</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tray (Windows, Linux)</td>
+<td><code>~/.agentbridge/tray.log</code></td>
+</tr>
+<tr>
+<td>Menu bar (macOS)</td>
+<td><code>~/.agentbridge/status-bar.log</code></td>
+</tr>
+<tr>
+<td>Login startup</td>
+<td><code>~/.agentbridge/autostart.log</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>~/.agentbridge</code> moves if you set <code>AGENTBRIDGE_HOME</code>.</p>
+<h2 id="common-problems">Common problems</h2>
+<details class="question">
+<summary><code>agentbridge: command not found</code></summary>
+<p>On macOS and Linux, add <code>~/.local/bin</code> to your <code>PATH</code>. On Windows, open a new terminal after installing.</p>
+</details>
+<details class="question">
+<summary>A provider card says <em>not installed</em></summary>
+<p>The CLI binary isn't on the gateway user's <code>PATH</code>. Install it and restart the gateway.</p>
+</details>
+<details class="question">
+<summary>A provider card says <em>not signed in</em></summary>
+<p>That CLI has no login or API key for the gateway user. Sign in to the CLI, or add an API key / use <strong>Connect account</strong> on the provider card. Reusing CLI logins on a separately configured server needs <code>PROXY_SINGLE_USER_PERSONAL_USE=true</code>.</p>
+</details>
+<details class="question">
+<summary>Usage shows <em>unavailable</em>, or looks stale</summary>
+<p><em>Unavailable</em> means the value couldn't be read; it doesn't mean zero. After a failed refresh the last values are kept and an error is shown, and retries slow down after rate limiting. For Claude, sign in through Claude Code again if the login expired. See <a href="subscription-usage.html">Subscription usage</a>.</p>
+</details>
+<details class="question">
+<summary>No menu bar or tray indicator</summary>
+<ul>
+<li>Check it isn't turned off on the <strong>Status indicator</strong> page.</li>
+<li>Did you start with <code>--no-tray</code>? Restart without it.</li>
+<li>Linux needs an X11 desktop with a system tray.</li>
+<li>Read <code>status-bar.log</code> or <code>tray.log</code>. The gateway keeps running if the helper fails; <code>agentbridge start</code> restarts a missing helper.</li>
+</ul>
+</details>
+<details class="question">
+<summary>Port already in use</summary>
+<p>Start on another port: <code>agentbridge start --port 43188</code>. For source services, run <code>./manage-service.sh status</code> to see the process listening, then <code>stop</code> or <code>restart</code>. Don't run the packaged CLI and a source service on the same port.</p>
+</details>
+<details class="question">
+<summary>Doesn't start at login</summary>
+<p>Check <code>agentbridge autostart status</code> and <code>~/.agentbridge/autostart.log</code>. On macOS, login jobs may be blocked from reading a source checkout under Desktop, Documents or Downloads; use a packaged install. Linux needs a desktop that supports XDG autostart.</p>
+</details>
+<details class="question">
+<summary>macOS or Windows warns about an unidentified developer</summary>
+<p>Release binaries are unsigned. Verify the download came from the project's releases page before allowing it.</p>
+</details>
+<details class="question">
+<summary><code>429 key_budget_exhausted</code> / <code>403 model_not_allowed</code> / <code>401</code></summary>
+<p>The key is over budget, not allowed for that model, or expired or invalid. Adjust it under <strong>API keys &amp; users</strong>. See <a href="keys-and-users.html">Keys, users and budgets</a>.</p>
+</details>
+<details class="question">
+<summary>Images are rejected with 400</summary>
+<p>Images must be inline base64, and only <code>claude</code>, <code>codex</code> and the direct-API backend accept them. CLI providers accept images only in the last user message.</p>
+</details>
+<details class="question">
+<summary>Tool calls come back as plain text or not at all</summary>
+<p>Function calling is emulated through the prompt, so a model can occasionally ignore the format. See <a href="api.html#behaviour-to-know">API reference</a>.</p>
+</details>
+<details class="question">
+<summary><code>temperature</code> or <code>max_tokens</code> has no effect</summary>
+<p>CLIs don't accept them. Check the <code>X-Proxy-Ignored-Params</code> response header. The Direct API backend honours them.</p>
+</details>
+<details class="question">
+<summary>Codex models are missing</summary>
+<p>Discovery only works with the shared host CLI login. Press <strong>Refresh discovered models</strong>, or add models manually for API-key or per-user logins. See <a href="models.html#codex-model-discovery">Models</a>.</p>
+</details>
+<h2 id="faq">FAQ</h2>
+<p><strong>Does it work offline?</strong> The gateway is local, but the agent CLIs call their providers over the internet.</p>
+<p><strong>Are my prompts stored?</strong> Prompts aren't logged unless <code>PROXY_DEBUG_LOG_PROMPTS=true</code>. Usage and cost records are kept in the local database.</p>
+<p><strong>Where is my data?</strong> In <code>~/.agentbridge</code>. <code>agentbridge uninstall</code> keeps it; add <code>--purge</code> to delete it.</p>
+<p><strong>Can I expose it to my team?</strong> Only behind a TLS reverse proxy, with <code>PROXY_SINGLE_USER_PERSONAL_USE=false</code>. See <a href="deployment.html#exposing-beyond-localhost">Deployment</a>.</p>
+<p>Still stuck? <a href="https://github.com/guna81/agent-bridge/issues">Open an issue</a> with your OS, <code>agentbridge --version</code>, and the relevant log lines (remove any secrets).</p><div class="pager"><span>← <a href="deployment.html">Deployment</a></span><span><a href="releases.html">Releases</a> →</span></div></main></div>
+<footer>AgentBridge is open source under the MIT license.</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.className='copy';b.textContent='Copy';b.onclick=function(){navigator.clipboard.writeText(p.innerText.replace(/Copy$/,'').trimEnd()).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)})};p.appendChild(b)})</script>
+</body></html>

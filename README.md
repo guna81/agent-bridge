@@ -3,7 +3,7 @@
 <h1 align="center">AgentBridge</h1>
 
 <p align="center">Track AI agent subscription usage and connect your tools to a local API gateway.</p>
-<p align="center"><a href="https://guna81.github.io/agent-bridge/">Website</a> · <a href="https://github.com/guna81/agent-bridge/releases/latest">Latest release</a> · <a href="docs/releases.md">Release guide</a></p>
+<p align="center"><a href="https://guna81.github.io/agent-bridge/">Website</a> · <a href="https://guna81.github.io/agent-bridge/guide/">Documentation</a> · <a href="https://github.com/guna81/agent-bridge/releases/latest">Latest release</a> · <a href="docs/releases.md">Release guide</a></p>
 
 AgentBridge brings two workflows together: monitor available subscription usage for supported coding agents, and expose configured agent CLIs through OpenAI-compatible and Anthropic-compatible APIs. The CLI runs a local gateway, opens a web dashboard, and can show usage in the macOS menu bar or a Windows or Linux system tray.
 
@@ -204,6 +204,14 @@ verify for Linux, so pass its install command from Google's docs as `AGY_INSTALL
 3. Open the card and press **Run test**. Test runs are logged but not charged.
 4. **API keys & users** → add a user, add credits, create a key (shown once; stored hashed).
 5. **Playground** → chat with any enabled model, or see **API quick start** in the UI for copy-paste client code.
+
+**Codex model discovery:** An enabled Codex CLI provider using the shared host CLI login discovers the
+visible models from Codex app-server at startup and every 30 minutes. Use **Refresh discovered models**
+on its provider card to refresh immediately. Discovered models appear in key suggestions and `/v1/models`
+and can be routed like manually configured models. The list is separate from **Models offered**; failed
+refreshes retain the last successful list. Discovery requires an authenticated host login and is not run
+for API-key or isolated per-user logins, where models must still be configured manually. Model availability
+is ultimately determined by Codex and the account; discovery is not a guarantee of access.
 
 Custom CLIs: *Add custom CLI* → program path, arguments (`{prompt}`, `{model}`, `{system}`), output format
 `text|json|ndjson` and a JSONPath to the answer.
