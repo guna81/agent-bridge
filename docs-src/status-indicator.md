@@ -47,7 +47,7 @@ A missing value means *unavailable*, not zero. See [Subscription usage](subscrip
 
 If the helper fails to start the gateway keeps running. Run `agentbridge start` again to restart a missing helper without restarting the gateway.
 
-## Source checkouts on macOS
+## Advanced: source checkouts on macOS
 
 The packaged CLI starts the helper automatically. For a source checkout, `./menubar/build.sh` builds it and `agentbridge start` manages it.
 
