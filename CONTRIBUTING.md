@@ -34,6 +34,17 @@ the UI dev server with `npm run dev` (from `frontend/`; set `VITE_BACKEND` if th
 Raw mode should switch off the CLI's own tools and replace its system prompt where the CLI allows it, and must
 never pass a "skip permissions" flag.
 
+## Editing the user guide
+
+The guide at https://guna81.github.io/agent-bridge/guide/ is written in Markdown in `docs-src/` and rendered to static HTML in `docs/guide/`. The HTML is committed and deployed with the landing page by `.github/workflows/pages.yml`. After editing a page, regenerate the HTML and commit both:
+
+```sh
+pip install markdown pymdown-extensions
+python3 scripts/build-guide.py
+```
+
+The Search Console verification tag in `docs/index.html` must stay, or the site becomes unverified.
+
 ## Terms of service
 
 This project is for use with your own provider API keys. Please do not send changes whose purpose is to share or
