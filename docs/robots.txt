@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://guna81.github.io/agent-bridge/sitemap.xml
