@@ -2,19 +2,27 @@
 
 AgentBridge can show subscription usage in the **macOS menu bar** or the **Windows/Linux system tray** while the gateway runs. The dashboard's **Status indicator** page controls it on the machine running the gateway.
 
+![AgentBridge Status Bar in macOS Menu Bar](../assets/status-bar-bars.png)
+
 ```sh
 agentbridge start
 agentbridge dashboard
 ```
 
+Clicking the indicator opens a live dropdown menu showing current usage percentages, reset times, provider toggles, and shortcuts:
+
+![AgentBridge Status Bar Dropdown Menu](../assets/status-bar-menu.png)
+
 ## Settings
 
-The indicator is **on by default**. On the **Status indicator** page you can:
+The indicator is **on by default**. On the **Status indicator** page in the dashboard you can:
 
 - turn it on or off;
 - choose **one or two providers**;
 - select a **display style**;
 - set the **refresh interval**.
+
+![Status indicator settings in dashboard](../assets/ui-status-indicator.png)
 
 Changes reach the indicator on its next poll. Hiding it does not stop the gateway or usage tracking. If you started with `--no-tray`, restart without it to use the indicator.
 
@@ -22,10 +30,10 @@ Settings are saved in `backend/data/status_bar_config.json` under the data direc
 
 ## Display styles
 
-| Style | What it shows |
-|---|---|
-| **Usage bars** | Top bar = 5-hour window, bottom bar = weekly window. Both show *remaining* capacity, so they shrink as usage grows. Up to two providers. |
-| **Compact icon** | The AgentBridge mark. Click it to see usage and reset times. |
+| Style | What it shows | Preview |
+|---|---|---|
+| **Usage bars** | Top bar = 5-hour window, bottom bar = weekly window. Both show *remaining* capacity, so they shrink as usage grows. Up to two providers. | ![Usage bars style](../assets/status-bar-bars.png) |
+| **Compact icon** | The AgentBridge mark. Click it to see usage and reset times. | ![Compact icon style](../assets/status-bar-compact.png) |
 
 Click the indicator for details, provider selection, dashboard access and refresh. The Windows and Linux tray uses compact graphics with percentages in its menu; an always-visible desktop widget isn't available.
 

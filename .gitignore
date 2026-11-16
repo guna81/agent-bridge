@@ -23,3 +23,4 @@ menubar/LLMGatewayBar
 menubar/LLMGatewayBar.app/
 .DS_Store
 build/
+.playwright-mcp/

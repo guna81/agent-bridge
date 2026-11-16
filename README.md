@@ -7,6 +7,16 @@
 
 AgentBridge brings two workflows together: monitor available subscription usage for supported coding agents, and expose configured agent CLIs through OpenAI-compatible and Anthropic-compatible APIs. The CLI runs a local gateway, opens a web dashboard, and can show usage in the macOS menu bar or a Windows or Linux system tray.
 
+<p align="center">
+  <img src="docs/assets/ui-dashboard.png" alt="AgentBridge Web Dashboard Overview" width="850">
+</p>
+
+<p align="center">
+  <img src="docs/assets/status-bar-bars.png" alt="AgentBridge Status Bar in macOS Menu Bar" width="460">
+  <br>
+  <em>Live subscription usage in macOS menu bar (bars show remaining 5h and weekly capacity)</em>
+</p>
+
 ## Install
 
 Prebuilt packages include the CLI and dashboard; you do not need to install Python or Node.js.
@@ -36,6 +46,11 @@ The installers download the [latest release](https://github.com/guna81/agent-bri
    ```
 
 3. In **Providers**, review and enable the providers you want. Existing provider settings are not overwritten. In **Subscription usage**, inspect available limits; in **Status indicator**, enable or hide the indicator, choose up to two providers, the display style, and refresh interval.
+
+   <p align="center">
+     <img src="docs/assets/ui-subscription-usage.png" alt="Subscription usage view in dashboard" width="800">
+   </p>
+
 4. To use the gateway from another app, add a user and create a key under **API keys & users**. Point an OpenAI-compatible client at `http://127.0.0.1:43187/v1` and use a `provider/model` identifier. The **API quick start** and **Playground** pages provide examples.
 
 Provider API keys and personal CLI logins are available: choose the sign-in method separately for each provider in the dashboard. Newly created built-in providers are configured to reuse local CLI logins. The dashboard command opens the app signed in; for manual sign-in use `agentbridge dashboard --show-token` and keep the token private.
@@ -63,6 +78,10 @@ agentbridge start --no-tray       # run without a status indicator
 After an update, run `agentbridge stop` followed by `agentbridge start` to use the new version. Updates retain the existing installation files and user data. Uninstall retains user data unless `--purge` is supplied; a source checkout and installer launcher backups are retained. On Windows, packaged uninstall completes after the command exits and reports a log path. AgentBridge stores its database, secrets, and logs in `~/.agentbridge` (override with `AGENTBRIDGE_HOME`) and binds to loopback by default. For tray startup errors on Windows or Linux, check `~/.agentbridge/tray.log`. After the first successful start, AgentBridge enables automatic startup at user login when it can verify the installed launcher. It remembers the gateway port. Use `agentbridge autostart disable` to turn this off. Linux requires a desktop session that supports XDG autostart; tray support varies by desktop.
 
 The indicator shows remaining capacity: its bars shrink as usage increases. The compact icon opens the same usage details, and the menu includes percentages and reset times when available. Windows and Linux use compact tray graphics; an always-visible widget is not currently available. See the [status indicator guide](docs/mac-status-bar.md).
+
+<p align="center">
+  <img src="docs/assets/status-bar-menu.png" alt="AgentBridge Status Bar Menu Dropdown" width="420">
+</p>
 
 ## Features
 

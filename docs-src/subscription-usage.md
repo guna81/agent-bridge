@@ -2,11 +2,17 @@
 
 AgentBridge reads the usage limits of your agent subscriptions and shows them in the dashboard (**Subscription usage**) and in the [status indicator](status-indicator.md).
 
+![Subscription usage in AgentBridge dashboard](../assets/ui-subscription-usage.png)
+
 ## What you see
 
 - The **5-hour** window and the **weekly** window for each supported provider.
 - When each window **resets**.
 - When the data was last updated.
+
+Subscription usage can also be monitored directly from the menu bar:
+
+![AgentBridge Status Bar](../assets/status-bar-bars.png)
 
 ## How it is collected
 

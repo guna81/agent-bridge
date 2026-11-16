@@ -16,6 +16,7 @@ a{color:var(--accent)}
 .side a{display:block;padding:5px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:.9rem}
 .side a:hover{color:var(--text);background:var(--surface)}.side a.on{color:var(--accent);background:var(--surface2)}
 main{padding:36px 0 80px;min-width:0;max-width:820px}
+main img{max-width:100%;height:auto;border-radius:10px;border:1px solid var(--line);margin:18px 0;box-shadow:0 12px 32px #00000040}
 h1{font-size:2.4rem;letter-spacing:-.05em;line-height:1.15;margin:0 0 20px}
 h2{font-size:1.5rem;letter-spacing:-.03em;margin:44px 0 12px;padding-top:6px}
 h3{font-size:1.15rem;margin:30px 0 8px}
@@ -47,17 +48,21 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 <div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html">Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html" class=on>Status indicator</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html">Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html">Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
 <main><h1 id="status-indicator">Status indicator</h1>
 <p>AgentBridge can show subscription usage in the <strong>macOS menu bar</strong> or the <strong>Windows/Linux system tray</strong> while the gateway runs. The dashboard's <strong>Status indicator</strong> page controls it on the machine running the gateway.</p>
+<p><img alt="AgentBridge Status Bar in macOS Menu Bar" src="../assets/status-bar-bars.png" /></p>
 <div class="highlight"><pre><span></span><code>agentbridge<span class="w"> </span>start
 agentbridge<span class="w"> </span>dashboard
 </code></pre></div>
+<p>Clicking the indicator opens a live dropdown menu showing current usage percentages, reset times, provider toggles, and shortcuts:</p>
+<p><img alt="AgentBridge Status Bar Dropdown Menu" src="../assets/status-bar-menu.png" /></p>
 <h2 id="settings">Settings</h2>
-<p>The indicator is <strong>on by default</strong>. On the <strong>Status indicator</strong> page you can:</p>
+<p>The indicator is <strong>on by default</strong>. On the <strong>Status indicator</strong> page in the dashboard you can:</p>
 <ul>
 <li>turn it on or off;</li>
 <li>choose <strong>one or two providers</strong>;</li>
 <li>select a <strong>display style</strong>;</li>
 <li>set the <strong>refresh interval</strong>.</li>
 </ul>
+<p><img alt="Status indicator settings in dashboard" src="../assets/ui-status-indicator.png" /></p>
 <p>Changes reach the indicator on its next poll. Hiding it does not stop the gateway or usage tracking. If you started with <code>--no-tray</code>, restart without it to use the indicator.</p>
 <p>Settings are saved in <code>backend/data/status_bar_config.json</code> under the data directory.</p>
 <h2 id="display-styles">Display styles</h2>
@@ -66,16 +71,19 @@ agentbridge<span class="w"> </span>dashboard
 <tr>
 <th>Style</th>
 <th>What it shows</th>
+<th>Preview</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>Usage bars</strong></td>
 <td>Top bar = 5-hour window, bottom bar = weekly window. Both show <em>remaining</em> capacity, so they shrink as usage grows. Up to two providers.</td>
+<td><img alt="Usage bars style" src="../assets/status-bar-bars.png" /></td>
 </tr>
 <tr>
 <td><strong>Compact icon</strong></td>
 <td>The AgentBridge mark. Click it to see usage and reset times.</td>
+<td><img alt="Compact icon style" src="../assets/status-bar-compact.png" /></td>
 </tr>
 </tbody>
 </table>

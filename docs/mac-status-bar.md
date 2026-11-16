@@ -2,6 +2,8 @@
 
 AgentBridge can display subscription usage in the macOS menu bar or the Windows and Linux system tray while its gateway is running. The dashboard's **Status indicator** page controls the display on the machine running the gateway.
 
+![AgentBridge Status Bar in macOS Menu Bar](assets/status-bar-bars.png)
+
 ## Start and configure
 
 ```sh
@@ -9,10 +11,23 @@ agentbridge start
 agentbridge dashboard
 ```
 
-The indicator is enabled by default. On **Status indicator**, you can turn it off or on, choose one or two providers, select a display style and refresh interval, then save. Changes reach the indicator on its next poll; hiding it does not stop the gateway or usage tracking. If you started with `--no-tray`, restart without that option to use the indicator. Install and sign in to the relevant agent CLIs separately; available usage data and reset times depend on the provider and platform.
+Clicking the indicator opens the live dropdown menu showing current usage percentages, reset times, provider toggles, and dashboard shortcuts:
+
+![AgentBridge Status Bar Dropdown Menu](assets/status-bar-menu.png)
+
+The indicator is enabled by default. On **Status indicator** in the web dashboard, you can turn it off or on, choose one or two providers, select a display style and refresh interval, then save:
+
+![Status indicator settings in dashboard](assets/ui-status-indicator.png)
+
+Changes reach the indicator on its next poll; hiding it does not stop the gateway or usage tracking. If you started with `--no-tray`, restart without that option to use the indicator. Install and sign in to the relevant agent CLIs separately; available usage data and reset times depend on the provider and platform.
 
 - **Usage bars:** the top bar represents the 5-hour window and the lower bar represents the weekly window. Both show remaining capacity, so they shrink as usage increases. Select up to two providers.
+  
+  ![Usage bars style](assets/status-bar-bars.png)
+
 - **Compact icon:** shows the AgentBridge mark. Click it to see available provider usage and reset times.
+  
+  ![Compact icon style](assets/status-bar-compact.png)
 
 Click the indicator for details, provider selection, dashboard access, and refresh. A missing value is shown as unavailable; it does not mean the limit is zero. The Windows and Linux tray uses compact graphics, with percentages in its menu. An always-visible desktop widget is not currently available.
 
