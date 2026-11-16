@@ -2,6 +2,8 @@
 
 Open it with `agentbridge dashboard`. The command signs you in automatically: the token travels in a URL fragment, which the browser never sends to the server and the dashboard removes after loading.
 
+![AgentBridge Dashboard Overview](../assets/ui-dashboard.png)
+
 ## Pages
 
 | Page | Use it to |
@@ -14,6 +16,24 @@ Open it with `agentbridge dashboard`. The command signs you in automatically: th
 | **Request usage** | Inspect request history, outstanding reservations and export CSV. |
 | **Playground** | Chat with any enabled model and estimate cost. |
 | **API quick start** | Copy-paste client code. |
+
+### Subscription usage
+
+Inspect live remaining usage windows and reset times across your configured agents:
+
+![Subscription usage view in dashboard](../assets/ui-subscription-usage.png)
+
+### Status indicator settings
+
+Customize which agent quotas appear in the menu bar and choose between usage bars or a compact mark:
+
+![Status indicator settings in dashboard](../assets/ui-status-indicator.png)
+
+### Providers
+
+Configure personal CLI logins or direct API keys, select default models, and run test completions:
+
+![Providers configuration in dashboard](../assets/ui-providers.png)
 
 ## Request usage
 

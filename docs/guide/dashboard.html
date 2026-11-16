@@ -16,6 +16,7 @@ a{color:var(--accent)}
 .side a{display:block;padding:5px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:.9rem}
 .side a:hover{color:var(--text);background:var(--surface)}.side a.on{color:var(--accent);background:var(--surface2)}
 main{padding:36px 0 80px;min-width:0;max-width:820px}
+main img{max-width:100%;height:auto;border-radius:10px;border:1px solid var(--line);margin:18px 0;box-shadow:0 12px 32px #00000040}
 h1{font-size:2.4rem;letter-spacing:-.05em;line-height:1.15;margin:0 0 20px}
 h2{font-size:1.5rem;letter-spacing:-.03em;margin:44px 0 12px;padding-top:6px}
 h3{font-size:1.15rem;margin:30px 0 8px}
@@ -47,6 +48,7 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 <div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html" class=on>Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html">Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html">Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
 <main><h1 id="dashboard">Dashboard</h1>
 <p>Open it with <code>agentbridge dashboard</code>. The command signs you in automatically: the token travels in a URL fragment, which the browser never sends to the server and the dashboard removes after loading.</p>
+<p><img alt="AgentBridge Dashboard Overview" src="../assets/ui-dashboard.png" /></p>
 <h2 id="pages">Pages</h2>
 <table>
 <thead>
@@ -90,6 +92,15 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 </tr>
 </tbody>
 </table>
+<h3 id="subscription-usage">Subscription usage</h3>
+<p>Inspect live remaining usage windows and reset times across your configured agents:</p>
+<p><img alt="Subscription usage view in dashboard" src="../assets/ui-subscription-usage.png" /></p>
+<h3 id="status-indicator-settings">Status indicator settings</h3>
+<p>Customize which agent quotas appear in the menu bar and choose between usage bars or a compact mark:</p>
+<p><img alt="Status indicator settings in dashboard" src="../assets/ui-status-indicator.png" /></p>
+<h3 id="providers">Providers</h3>
+<p>Configure personal CLI logins or direct API keys, select default models, and run test completions:</p>
+<p><img alt="Providers configuration in dashboard" src="../assets/ui-providers.png" /></p>
 <h2 id="request-usage">Request usage</h2>
 <p>The usage explorer filters by user, key, provider, model and UTC date, pages through results, and exports the loaded rows to CSV. Cost totals count only loaded billed rows; test runs are shown but not billed.</p>
 <p>It also lists <strong>outstanding reservations</strong> with a guarded release action. See <a href="keys-and-users.html#reservations">reservations</a>.</p>

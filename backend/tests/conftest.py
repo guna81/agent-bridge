@@ -31,6 +31,13 @@ def make_wrapper(dirpath: Path, flavor: str) -> str:
     return str(w)
 
 
+@pytest.fixture(autouse=True)
+def no_live_codex(monkeypatch):
+    """Tests must never spawn the host's real Codex CLI; individual tests opt in by patching this."""
+    from app import codex_usage
+    monkeypatch.setattr(codex_usage, "live_snapshot", lambda: {})
+
+
 @pytest.fixture(scope="session")
 def wrappers(tmp_path_factory) -> dict[str, str]:
     d = tmp_path_factory.mktemp("bin")

@@ -11,6 +11,19 @@ import time
 import urllib.request
 
 
+def _codex_window(key: str, used, reset) -> dict:
+    """One Codex window; a window whose reset time has passed starts over at 0% used."""
+    used = max(0, min(100, used))
+    if isinstance(reset, (int, float)) and reset > 0 and reset <= time.time():
+        used = 0
+    try:
+        reset_str = dt.datetime.fromtimestamp(reset).strftime("%I:%M %p" if key == "five_hour" else "%I:%M %p on %d %b") if reset else None
+    except (ValueError, OSError, OverflowError, TypeError):
+        reset_str = None
+    return {"label": "5h limit" if key == "five_hour" else "Weekly limit", "used_percent": used,
+            "left_percent": 100 - used, "reset_at": reset, "reset_str": reset_str, "is_exhausted": used >= 100}
+
+
 def _codex_session_rate_limits() -> dict | None:
     """Find the latest Codex subscription snapshot in recent session transcripts."""
     paths = glob.glob(os.path.expanduser("~/.codex/sessions/**/*.jsonl"), recursive=True)
@@ -53,97 +66,76 @@ def _codex_session_rate_limits() -> dict | None:
         if minutes not in (300, 10080) or not isinstance(used, (int, float)):
             continue
         key = "five_hour" if minutes == 300 else "weekly"
-        used = max(0, min(100, used))
-        reset = window.get("resets_at")
-        if isinstance(reset, (int, float)) and reset > 0 and reset <= time.time():
-            used = 0
-        try:
-            reset_str = dt.datetime.fromtimestamp(reset).strftime("%I:%M %p" if key == "five_hour" else "%I:%M %p on %d %b") if reset else None
-        except (ValueError, OSError, OverflowError, TypeError):
-            reset_str = None
-        result[key] = {"label": "5h limit" if key == "five_hour" else "Weekly limit", "used_percent": used,
-                       "left_percent": 100 - used, "reset_at": reset, "reset_str": reset_str, "is_exhausted": used >= 100}
+        result[key] = _codex_window(key, used, window.get("resets_at"))
     return result if result["five_hour"] or result["weekly"] else None
 
 
-def get_codex_rate_limits(custom_path: str | None = None) -> dict | None:
-    """Reads the latest 5-hour and weekly subscription limits logged by Codex CLI."""
-    db_path = os.path.expanduser(custom_path or "~/.codex/logs_2.sqlite")
-    if not custom_path:
-        session_limits = _codex_session_rate_limits()
-        if session_limits:
-            return session_limits
+def _codex_sqlite_rate_limits(db_path: str) -> dict | None:
+    """Latest limits from Codex's log database. Windows are assigned by their reported length."""
     if not os.path.exists(db_path):
         return None
-
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1.0)
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT ts, feedback_log_body FROM logs 
-            WHERE feedback_log_body LIKE '%x-codex-primary-used-percent%'
-            ORDER BY id DESC LIMIT 1
-        """)
-        row = cur.fetchone()
-        conn.close()
+        try:
+            row = conn.execute("""
+                SELECT ts, feedback_log_body FROM logs
+                WHERE feedback_log_body LIKE '%x-codex-primary-used-percent%'
+                ORDER BY id DESC LIMIT 1
+            """).fetchone()
+        finally:
+            conn.close()
         if not row:
             return None
-
         ts_log, text = row
 
-        p_used = re.search(r'\"x-codex-primary-used-percent\":\s*\"(\d+)\"', text)
-        s_used = re.search(r'\"x-codex-secondary-used-percent\":\s*\"(\d+)\"', text)
-        p_reset = re.search(r'\"x-codex-primary-reset-at\":\s*\"(\d+)\"', text)
-        s_reset = re.search(r'\"x-codex-secondary-reset-at\":\s*\"(\d+)\"', text)
+        def header(name: str) -> int | None:
+            match = re.search(rf'\"x-codex-{name}\":\s*\"(\d+)\"', text)
+            return int(match.group(1)) if match else None
 
-        primary_used_val = int(p_used.group(1)) if p_used else 0
-        secondary_used_val = int(s_used.group(1)) if s_used else 0
-        primary_reset_val = int(p_reset.group(1)) if p_reset else 0
-        secondary_reset_val = int(s_reset.group(1)) if s_reset else 0
-
-        primary_left_val = max(0, 100 - primary_used_val)
-        secondary_left_val = max(0, 100 - secondary_used_val)
-
-        now_ts = int(dt.datetime.now().timestamp())
-        if primary_reset_val and now_ts >= primary_reset_val:
-            primary_left_val = 100
-            primary_used_val = 0
-
-        if secondary_reset_val and now_ts >= secondary_reset_val:
-            secondary_left_val = 100
-            secondary_used_val = 0
-
-        def fmt_time(ts: int | None) -> str | None:
-            if not ts:
-                return None
-            return dt.datetime.fromtimestamp(ts).strftime("%I:%M %p")
-
-        def fmt_date(ts: int | None) -> str | None:
-            if not ts:
-                return None
-            return dt.datetime.fromtimestamp(ts).strftime("%I:%M %p on %d %b")
-
-        return {
-            "five_hour": {
-                "label": "5h limit",
-                "used_percent": primary_used_val,
-                "left_percent": primary_left_val,
-                "reset_at": primary_reset_val,
-                "reset_str": fmt_time(primary_reset_val),
-                "is_exhausted": primary_left_val == 0,
-            },
-            "weekly": {
-                "label": "Weekly limit",
-                "used_percent": secondary_used_val,
-                "left_percent": secondary_left_val,
-                "reset_at": secondary_reset_val,
-                "reset_str": fmt_date(secondary_reset_val),
-                "is_exhausted": secondary_left_val == 0,
-            },
-            "updated_at": ts_log,
-        }
+        result = {"five_hour": None, "weekly": None, "updated_at": ts_log}
+        for source in ("primary", "secondary"):
+            used, minutes = header(f"{source}-used-percent"), header(f"{source}-window-minutes")
+            if used is None or minutes not in (300, 10080):
+                continue
+            key = "five_hour" if minutes == 300 else "weekly"
+            result[key] = _codex_window(key, used, header(f"{source}-reset-at"))
+        return result if result["five_hour"] or result["weekly"] else None
     except Exception:
         return None
+
+
+def _codex_epoch(value) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return dt.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def get_codex_rate_limits(custom_path: str | None = None) -> dict | None:
+    """Current Codex limits: live from the CLI when possible, else the latest logged snapshot."""
+    result = None
+    live: dict = {}
+    if not custom_path:
+        from .codex_usage import live_snapshot
+        live = live_snapshot()
+        if live.get("fetched_at"):
+            result = {"five_hour": None, "weekly": None, "updated_at": live["fetched_at"]}
+            for key in ("five_hour", "weekly"):
+                if live.get(key):
+                    result[key] = _codex_window(key, live[key]["used_percent"], live[key].get("reset_at"))
+        else:
+            result = _codex_session_rate_limits()
+    if result is None:
+        result = _codex_sqlite_rate_limits(os.path.expanduser(custom_path or "~/.codex/logs_2.sqlite"))
+    if result is None:
+        return None
+    updated = _codex_epoch(result.get("updated_at"))
+    result["is_stale"] = updated is None or time.time() - updated > 300
+    result["refreshing"] = bool(live.get("refreshing"))
+    result["refresh_error"] = None if live.get("fetched_at") else live.get("refresh_error")
+    return result
 
 
 def get_claude_rate_limits(custom_path: str | None = None) -> dict | None:
@@ -159,11 +151,11 @@ def get_claude_rate_limits(custom_path: str | None = None) -> dict | None:
                 five_h = u.get("five_hour") or {}
                 seven_d = u.get("seven_day") or {}
 
-                five_used = int(five_h.get("utilization", 0))
+                five_used = int(round(five_h.get("utilization", 0)))
                 five_left = max(0, 100 - five_used)
                 five_reset_iso = five_h.get("resets_at")
 
-                seven_used = int(seven_d.get("utilization", 0))
+                seven_used = int(round(seven_d.get("utilization", 0)))
                 seven_left = max(0, 100 - seven_used)
                 seven_reset_iso = seven_d.get("resets_at")
 
@@ -192,7 +184,7 @@ def get_claude_rate_limits(custom_path: str | None = None) -> dict | None:
 
                 scoped_dict = None
                 if scoped_item:
-                    sc_used = int(scoped_item.get("percent", 0))
+                    sc_used = int(round(scoped_item.get("percent", 0)))
                     sc_model = scoped_item.get("scope", {}).get("model", {}).get("display_name", "Model")
                     scoped_dict = {
                         "label": f"Current week ({sc_model})",
@@ -203,12 +195,13 @@ def get_claude_rate_limits(custom_path: str | None = None) -> dict | None:
                         "is_exhausted": sc_used >= 100,
                     }
 
-                now = dt.datetime.now(dt.timezone.utc)
-                if five_reset_iso:
+                # A snapshot taken before its own 5-hour reset says nothing about the new window:
+                # report it as unknown rather than inventing 0% used.
+                five_expired = False
+                if five_reset_iso and cached.get("fetchedAtMs"):
                     try:
-                        if now >= dt.datetime.fromisoformat(five_reset_iso):
-                            five_used = 0
-                            five_left = 100
+                        reset_ts = dt.datetime.fromisoformat(five_reset_iso).timestamp()
+                        five_expired = time.time() >= reset_ts and cached["fetchedAtMs"] / 1000 < reset_ts
                     except Exception:
                         pass
 
@@ -224,7 +217,7 @@ def get_claude_rate_limits(custom_path: str | None = None) -> dict | None:
                         "reset_at": None,
                         "reset_str": fmt_iso_time(five_reset_iso),
                         "is_exhausted": five_used >= 100,
-                    } if "utilization" in five_h else None,
+                    } if "utilization" in five_h and not five_expired else None,
                     "weekly": {
                         "label": "Current week (all models)",
                         "used_percent": seven_used,

@@ -125,3 +125,18 @@ def test_credentials_file_token_is_read_without_rewriting(tmp_path, monkeypatch)
     original = credentials.read_bytes()
     assert usage._access_token() == "existing-login"
     assert credentials.read_bytes() == original
+
+
+def test_expired_five_hour_window_is_unknown_not_zero(cache):
+    cache.write_text(json.dumps({"cachedUsageUtilization": {"fetchedAtMs": 1000, "utilization": {
+        "five_hour": {"utilization": 43, "resets_at": "2020-01-01T00:00:00+00:00"},
+        "seven_day": {"utilization": 19}}}}))
+    limits = get_claude_rate_limits(str(cache))
+    assert limits["five_hour"] is None
+    assert limits["weekly"]["used_percent"] == 19
+
+
+def test_fractional_utilization_rounds(cache):
+    cache.write_text(json.dumps({"cachedUsageUtilization": {"fetchedAtMs": 1000, "utilization": {
+        "five_hour": {"utilization": 47.9}, "seven_day": {"utilization": 20.5}}}}))
+    assert get_claude_rate_limits(str(cache))["five_hour"]["used_percent"] == 48

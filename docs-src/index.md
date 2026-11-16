@@ -7,6 +7,10 @@ AgentBridge brings two workflows together:
 
 Everything runs on your machine. The `agentbridge` command starts the gateway, opens a web dashboard and shows usage in the macOS menu bar or the Windows/Linux system tray.
 
+![AgentBridge Dashboard Overview](../assets/ui-dashboard.png)
+
+![AgentBridge Status Bar in macOS Menu Bar](../assets/status-bar-bars.png)
+
 ## Where to start
 
 | I want to... | Go to |

@@ -532,7 +532,7 @@ class StatusBarController: NSObject {
             let header = NSMenuItem(title: name, action: nil, keyEquivalent: "")
             menu.addItem(header)
             let limits = latestData?.rate_limits?[id] ?? nil
-            if id == "claude", let limits = limits {
+            if let limits = limits, limits.updated_at != nil || limits.refresh_error != nil {
                 var freshness = limits.is_stale == true ? "Stale usage" : "Usage updated"
                 if let date = limits.updated_at?.date {
                     freshness += " " + DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .short)

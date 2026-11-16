@@ -40,6 +40,7 @@ a{color:var(--accent)}
 .side a{display:block;padding:5px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:.9rem}
 .side a:hover{color:var(--text);background:var(--surface)}.side a.on{color:var(--accent);background:var(--surface2)}
 main{padding:36px 0 80px;min-width:0;max-width:820px}
+main img{max-width:100%;height:auto;border-radius:10px;border:1px solid var(--line);margin:18px 0;box-shadow:0 12px 32px #00000040}
 h1{font-size:2.4rem;letter-spacing:-.05em;line-height:1.15;margin:0 0 20px}
 h2{font-size:1.5rem;letter-spacing:-.03em;margin:44px 0 12px;padding-top:6px}
 h3{font-size:1.15rem;margin:30px 0 8px}
