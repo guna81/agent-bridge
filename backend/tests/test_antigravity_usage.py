@@ -19,6 +19,8 @@ def test_cli_usage_populates_quota_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(reader, "_schedule_agy_refresh", lambda path: None)
     monkeypatch.setattr("app.config.get_settings", lambda: SimpleNamespace(data_dir=tmp_path))
     monkeypatch.setattr("app.status_bar_config.load_status_bar_config", lambda: SimpleNamespace(antigravity_ls_address="", antigravity_csrf_token=""))
+    monkeypatch.delenv("ANTIGRAVITY_LS_ADDRESS", raising=False)
+    monkeypatch.delenv("ANTIGRAVITY_CSRF_TOKEN", raising=False)
     reader._agy_refresh_lock.acquire()
     reader._refresh_agy_usage(tmp_path / "antigravity_quota_cache.json")
     limits = reader.get_antigravity_rate_limits()
