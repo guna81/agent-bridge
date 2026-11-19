@@ -1,7 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $repo = if ($env:AGENTBRIDGE_REPOSITORY) { $env:AGENTBRIDGE_REPOSITORY } else { 'guna81/agent-bridge' }
 $base = if ($env:AGENTBRIDGE_RELEASE_BASE_URL) { $env:AGENTBRIDGE_RELEASE_BASE_URL } else { "https://github.com/$repo/releases/latest/download" }
-if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [System.Runtime.InteropServices.Architecture]::X64) { throw 'Only Windows x86-64 release packages are currently available.' }
+$isX64 = [Environment]::Is64BitOperatingSystem -and (($env:PROCESSOR_ARCHITEW6432 -eq 'AMD64') -or ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64'))
+if (-not $isX64) { throw 'Only Windows x86-64 release packages are currently available.' }
 $name = 'agentbridge-windows-x86_64.zip'
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("agentbridge-install-" + [guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $work | Out-Null
