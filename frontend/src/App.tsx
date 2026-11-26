@@ -7,18 +7,29 @@ import Playground from "./pages/Playground";
 import QuickStart from "./pages/QuickStart";
 import StatusBarSettings from "./pages/StatusBarSettings";
 import SubscriptionUsage from "./pages/SubscriptionUsage";
+import Skills from "./pages/Skills";
 
-const TABS = [
+const PRIMARY_TABS = [
   { id: "overview", label: "Overview", icon: "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" },
   { id: "subscription", label: "Subscription usage", icon: "M4 4h4v16H4V4zm6 5h4v11h-4V9zm6-3h4v14h-4V6z" },
   { id: "statusbar", label: "Status indicator", icon: "M4 4h16v4H4V4zm0 6h16v10H4V10zm3 3v4h2v-4H7zm4 2v2h2v-2h-2zm4-3v5h2v-5h-2z" },
+  { id: "instructions", label: "Instructions", icon: "M4 3h11l5 5v13H4V3zm10 1.5V9h4.5L14 4.5zM7 12v2h10v-2H7zm0 4v2h7v-2H7z" },
+  { id: "skills", label: "Skills", icon: "M6 2h12a2 2 0 012 2v16a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm1 4v2h10V6H7zm0 4v2h10v-2H7zm0 4v2h6v-2H7z" },
+] as const;
+
+const CLI_PROXY_TABS = [
   { id: "providers", label: "Providers", icon: "M4 6h16v4H4V6zm0 8h16v4H4v-4zm3-6.5a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z" },
-  { id: "keys", label: "API keys & users", icon: "M14 3a7 7 0 00-6.7 9.1L2 17.4V22h4.6v-2.5H9V17h2.4l1.5-1.5A7 7 0 1014 3zm2.5 6.5a2 2 0 110-4 2 2 0 010 4z" },
+  { id: "keys", label: "Keys & users", icon: "M14 3a7 7 0 00-6.7 9.1L2 17.4V22h4.6v-2.5H9V17h2.4l1.5-1.5A7 7 0 1014 3zm2.5 6.5a2 2 0 110-4 2 2 0 010 4z" },
   { id: "requests", label: "Request usage", icon: "M4 4h16v16H4V4zm3 3v2h10V7H7zm0 4v2h10v-2H7zm0 4v2h7v-2H7z" },
   { id: "playground", label: "Playground", icon: "M4 4h16a1 1 0 011 1v11a1 1 0 01-1 1H9l-5 4V5a1 1 0 011-1z" },
-  { id: "quickstart", label: "API quick start", icon: "M8.6 16.6L4 12l4.6-4.6L10 8.8 6.8 12l3.2 3.2-1.4 1.4zm6.8 0L14 15.2l3.2-3.2L14 8.8l1.4-1.4L20 12l-4.6 4.6z" },
+  { id: "quickstart", label: "Quick start", icon: "M8.6 16.6L4 12l4.6-4.6L10 8.8 6.8 12l3.2 3.2-1.4 1.4zm6.8 0L14 15.2l3.2-3.2L14 8.8l1.4-1.4L20 12l-4.6 4.6z" },
 ] as const;
-export type Tab = (typeof TABS)[number]["id"];
+
+type PrimaryTab = (typeof PRIMARY_TABS)[number]["id"];
+type CliProxyTab = (typeof CLI_PROXY_TABS)[number]["id"];
+export type Tab = PrimaryTab | CliProxyTab;
+
+const ALL_TABS = [...PRIMARY_TABS, ...CLI_PROXY_TABS] as const;
 
 // CLI-provided credentials stay in the fragment, which is not sent to the server.
 // Remove it before rendering or making requests.
@@ -29,7 +40,11 @@ if (launchToken) {
   setToken(launchToken);
 }
 
-const tabFromHash = (): Tab => (TABS.find((t) => t.id === location.hash.slice(1))?.id ?? "overview") as Tab;
+const tabFromHash = (): Tab => {
+  const hash = location.hash.slice(1);
+  if (hash === "cliproxy") return "providers";
+  return ALL_TABS.find((t) => t.id === hash)?.id ?? "overview";
+};
 const THEME_KEY = "proxy.theme";
 
 function useTheme() {
@@ -146,20 +161,21 @@ export default function App() {
       <aside className="side">
         <div className="brand">
           <Logo />
-          <div className="brand-copy"><span>AgentBridge</span><small>API & usage dashboard</small></div>
+          <div className="brand-copy"><span>AgentBridge</span><small>Usage, skills & CLI proxy</small></div>
         </div>
-        <div className="side-label">Workspace</div>
         <nav aria-label="Sections">
-          {TABS.map((t) => (
+          {ALL_TABS.map((t) => (
             <div key={t.id}>
-            {t.id === "subscription" && <div className="side-label">Agent usage</div>}
-            {t.id === "providers" && <div className="side-label">API gateway</div>}
-            <button key={t.id} className={tab === t.id ? "active" : ""} style={{ width: "100%" }} aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d={t.icon} />
-              </svg>
-              <span>{t.label}</span>
-            </button>
+              {t.id === "overview" && <div className="side-label">Workspace</div>}
+              {t.id === "subscription" && <div className="side-label">Agent usage</div>}
+              {t.id === "instructions" && <div className="side-label">Agent setup</div>}
+              {t.id === "providers" && <div className="side-label">CLI proxy</div>}
+              <button className={tab === t.id ? "active" : ""} style={{ width: "100%" }} aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d={t.icon} />
+                </svg>
+                <span>{t.label}</span>
+              </button>
             </div>
           ))}
         </nav>
@@ -200,6 +216,8 @@ export default function App() {
         {tab === "requests" && <Keys go={setTab} usageOnly />}
         {tab === "playground" && <Playground go={setTab} />}
         {tab === "statusbar" && <StatusBarSettings />}
+        {tab === "skills" && <Skills />}
+        {tab === "instructions" && <Skills mode="instructions" />}
         {tab === "quickstart" && <QuickStart go={setTab} />}
       </main>
     </div>

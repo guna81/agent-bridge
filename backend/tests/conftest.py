@@ -14,6 +14,8 @@ FAKE = HERE / "fake_cli.py"
 _tmp = tempfile.mkdtemp(prefix="proxy-test-")
 os.environ.update({
     "PROXY_DATA_DIR": _tmp,
+    "PROXY_SKILLS_DIR": os.path.join(_tmp, "agents"),
+    "PROXY_AGENTS_HOME": os.path.join(_tmp, "home"),
     "PROXY_SECRET_KEY": "Hmb0qXbsQZ0cT4oNnVfm2xUe2m9N0m3m1x0yq0rB3dM=",
     "PROXY_ADMIN_TOKEN": "test-admin-token",
     "PROXY_KEY_PEPPER": "test-pepper",

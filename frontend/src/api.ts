@@ -304,3 +304,69 @@ export async function streamChat(
   }
   return { ...(stats ?? { prompt_tokens: 0, completion_tokens: 0 }), model: selectedModel, ignored };
 }
+
+export type SkillLink = "linked" | "missing" | "stale" | "conflict";
+export interface SkillIssue {
+  level: "error" | "warn" | "info";
+  message: string;
+}
+export interface SkillFile {
+  kind: "skill";
+  name: string;
+  path: string;
+  text: string;
+  linked: Record<string, SkillLink>;
+  wrappers: string[];
+  files: string[];
+  issues: SkillIssue[];
+}
+export interface WrapperFile {
+  kind: "wrapper";
+  name: string;
+  path: string;
+  text: string;
+  skill: string | null;
+  linked: SkillLink;
+  issues: SkillIssue[];
+}
+export interface InstructionFile {
+  kind: "instructions";
+  name: "global" | "claude" | "codex" | "agy";
+  label: string;
+  path: string;
+  text: string;
+  issues: SkillIssue[];
+}
+/** applied: block matches the sources; outdated: sources changed; edited: block changed by hand; missing: no block. */
+export type InstructionStatus = "applied" | "outdated" | "edited" | "missing";
+export interface InstructionTarget {
+  id: string;
+  label: string;
+  path: string;
+  status: InstructionStatus;
+  own_lines: number;
+  /** Instructions folder that wrote the block now in the file, when it says. */
+  source?: string | null;
+}
+export interface InstructionResult {
+  path: string;
+  status: "added" | "updated" | "unchanged" | "skipped" | "removed";
+  detail?: string;
+}
+export interface SkillsState {
+  root: string;
+  skills_dir: string;
+  wrappers_dir: string;
+  user_home?: string;
+  exists: boolean;
+  instructions: { dir: string; files: InstructionFile[]; targets: InstructionTarget[] };
+  targets: { id: string; label: string; dir: string }[];
+  agents_dir: string;
+  skills: SkillFile[];
+  wrappers: WrapperFile[];
+}
+export interface SkillLinkResult {
+  path: string;
+  status: "linked" | "relinked" | "removed" | "unchanged" | "skipped";
+  detail?: string;
+}

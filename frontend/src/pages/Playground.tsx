@@ -160,7 +160,7 @@ export default function Playground({ go }: { go: (t: Tab) => void }) {
         <div>
           <h1>Playground</h1>
           <p className="muted">
-            Test a model through your API gateway. Requests use the selected API key and are billed to its user.
+            Test a model through your CLI proxy. Requests use the selected API key and are billed to its user.
           </p>
         </div>
         {balance !== null && <span className="pill">{money(balance)} credits left</span>}

@@ -45,33 +45,31 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 .tabbed-set>input:nth-child(1):checked~.tabbed-labels>label:nth-child(1){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(1):checked~.tabbed-content>.tabbed-block:nth-child(1){display:block}.tabbed-set>input:nth-child(2):checked~.tabbed-labels>label:nth-child(2){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(2):checked~.tabbed-content>.tabbed-block:nth-child(2){display:block}.tabbed-set>input:nth-child(3):checked~.tabbed-labels>label:nth-child(3){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(3):checked~.tabbed-content>.tabbed-block:nth-child(3){display:block}.tabbed-set>input:nth-child(4):checked~.tabbed-labels>label:nth-child(4){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(4):checked~.tabbed-content>.tabbed-block:nth-child(4){display:block}.tabbed-set>input:nth-child(5):checked~.tabbed-labels>label:nth-child(5){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(5):checked~.tabbed-content>.tabbed-block:nth-child(5){display:block}.tabbed-set>input:nth-child(6):checked~.tabbed-labels>label:nth-child(6){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(6):checked~.tabbed-content>.tabbed-block:nth-child(6){display:block}</style></head><body>
 <header class="top"><a class="brand" href="../"><img src="../assets/agentbridge-icon.svg" alt="">AgentBridge</a>
 <nav><a href="index.html">Docs</a><a href="https://github.com/guna81/agent-bridge/releases/latest">Releases</a><a href="https://github.com/guna81/agent-bridge">GitHub</a></nav></header>
-<div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html">Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html">Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html" class=on>Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
+<div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html">Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="skills-and-instructions.html">Skills and instructions</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html">Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html" class=on>Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
 <main><h1 id="deployment">Deployment</h1>
 <h2 id="packaged-cli-recommended">Packaged CLI (recommended)</h2>
 <p>For personal use, <code>agentbridge start</code> is all you need, and after the first successful start AgentBridge starts at login on its own. See <a href="cli.html#autostart">Command line</a>.</p>
 <p>The sections below cover health checks and exposing the gateway to other machines. The service scripts, Docker and PM2 apply only to source checkouts, not the installed app, so they are at the end under Advanced.</p>
 <h2 id="health-and-metrics">Health and metrics</h2>
-<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8000/healthz<span class="w">     </span><span class="c1"># {"ok": true}</span>
-curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8000/metrics<span class="w">     </span><span class="c1"># needs the admin token unless PROXY_METRICS_PUBLIC=true</span>
-</code></pre></div>
+<pre class="highlight"><code class="language-sh">curl -s http://127.0.0.1:8000/healthz     # {"ok": true}
+curl -s http://127.0.0.1:8000/metrics     # needs the admin token unless PROXY_METRICS_PUBLIC=true</code></pre>
 <p>Use port <code>43187</code> for the packaged CLI.</p>
 <h2 id="exposing-beyond-localhost">Exposing beyond localhost</h2>
 <p>The server binds to <code>127.0.0.1</code>, speaks plain HTTP, and the admin UI carries the admin token. <strong>Do not expose it without TLS.</strong></p>
 <details class="example">
 <summary>Caddy (automatic HTTPS)</summary>
-<div class="highlight"><pre><span></span><code>proxy.example.com {
+<pre class="highlight"><code class="language-text">proxy.example.com {
     encode zstd
     request_body { max_size 512KB }
     reverse_proxy 127.0.0.1:8000 {
         flush_interval -1          # don't buffer SSE streams
     }
-}
-</code></pre></div>
+}</code></pre>
 <p>Caddy handles WebSocket upgrades automatically.</p>
 </details>
 <details class="example">
 <summary>nginx</summary>
-<div class="highlight"><pre><span></span><code>server {
+<pre class="highlight"><code class="language-text">server {
     listen 443 ssl http2;
     server_name proxy.example.com;
     ssl_certificate     /etc/letsencrypt/live/proxy.example.com/fullchain.pem;
@@ -98,8 +96,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8000/metr
         proxy_set_header Connection $connection_upgrade;
     }
 }
-map $http_upgrade $connection_upgrade { default upgrade; '' close; }
-</code></pre></div>
+map $http_upgrade $connection_upgrade { default upgrade; '' close; }</code></pre>
 </details>
 <h3 id="checklist">Checklist</h3>
 <ul>
@@ -116,30 +113,27 @@ map $http_upgrade $connection_upgrade { default upgrade; '' close; }
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p>A <code>launchd</code> LaunchAgent with <code>KeepAlive</code> and <code>RunAtLoad</code>.</p>
-<div class="highlight"><pre><span></span><code>./manage-service.sh<span class="w"> </span>install<span class="w">     </span><span class="c1"># install and start</span>
-./manage-service.sh<span class="w"> </span>status
-./manage-service.sh<span class="w"> </span>logs
-./manage-service.sh<span class="w"> </span>restart
-./manage-service.sh<span class="w"> </span>stop
-./manage-service.sh<span class="w"> </span>uninstall
-</code></pre></div>
+<pre class="highlight"><code class="language-sh">./manage-service.sh install     # install and start
+./manage-service.sh status
+./manage-service.sh logs
+./manage-service.sh restart
+./manage-service.sh stop
+./manage-service.sh uninstall</code></pre>
 <p>Plist: <code>~/Library/LaunchAgents/com.ai-credit-proxy.plist</code>. Logs: <code>~/Library/Logs/ai-credit-proxy/</code>.</p>
 </div>
 <div class="tabbed-block">
 <p>A <code>systemd</code> <strong>user</strong> service, no root needed.</p>
-<div class="highlight"><pre><span></span><code>./manage-service.sh<span class="w"> </span>install<span class="w">     </span><span class="c1"># also tries `loginctl enable-linger`</span>
-./manage-service.sh<span class="w"> </span>status
-systemctl<span class="w"> </span>--user<span class="w"> </span>status<span class="w"> </span>ai-credit-proxy.service
-journalctl<span class="w"> </span>--user<span class="w"> </span>-u<span class="w"> </span>ai-credit-proxy.service<span class="w"> </span>-f
-</code></pre></div>
+<pre class="highlight"><code class="language-sh">./manage-service.sh install     # also tries `loginctl enable-linger`
+./manage-service.sh status
+systemctl --user status ai-credit-proxy.service
+journalctl --user -u ai-credit-proxy.service -f</code></pre>
 <p>Linger keeps the service alive after you log out; enabling it may need administrator authorisation, so verify it. Unit file: <code>~/.config/systemd/user/ai-credit-proxy.service</code>.</p>
 </div>
 <div class="tabbed-block">
 <p>A Scheduled Task that starts at login, runs silently and restarts on failure.</p>
-<div class="highlight"><pre><span></span><code><span class="n">powershell</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="n">manage-service</span><span class="p">.</span><span class="n">ps1</span> <span class="n">install</span>
-<span class="n">powershell</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="n">manage-service</span><span class="p">.</span><span class="n">ps1</span> <span class="n">status</span>
-<span class="n">powershell</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="n">manage-service</span><span class="p">.</span><span class="n">ps1</span> <span class="n">logs</span>
-</code></pre></div>
+<pre class="highlight"><code class="language-powershell">powershell -ExecutionPolicy Bypass -File .\manage-service.ps1 install
+powershell -ExecutionPolicy Bypass -File .\manage-service.ps1 status
+powershell -ExecutionPolicy Bypass -File .\manage-service.ps1 logs</code></pre>
 <p>Logs: <code>%USERPROFILE%\.ai-credit-proxy\logs\server.log</code>. WSL2 works well for Linux-first CLIs: run <code>./manage-service.sh install</code> inside it. For a true system service that runs before logon, use NSSM.</p>
 </div>
 </div>
@@ -150,17 +144,15 @@ journalctl<span class="w"> </span>--user<span class="w"> </span>-u<span class="w
 </div>
 <p>If the service can't find your CLIs, check they are on the user <code>PATH</code>. The scripts include <code>~/.local/bin</code>, <code>/usr/local/bin</code>, <code>/opt/homebrew/bin</code>, <code>/usr/bin</code> and <code>/bin</code>.</p>
 <h3 id="docker">Docker</h3>
-<div class="highlight"><pre><span></span><code>cp<span class="w"> </span>.env.example<span class="w"> </span>.env<span class="w">     </span><span class="c1"># set PROXY_SECRET_KEY, PROXY_KEY_PEPPER (and PROXY_ADMIN_TOKEN)</span>
-docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--build<span class="w">     </span><span class="c1"># published on 127.0.0.1:8000 only</span>
-docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f
-</code></pre></div>
+<pre class="highlight"><code class="language-sh">cp .env.example .env     # set PROXY_SECRET_KEY, PROXY_KEY_PEPPER (and PROXY_ADMIN_TOKEN)
+docker compose up -d --build     # published on 127.0.0.1:8000 only
+docker compose logs -f</code></pre>
 <p>The compose file uses <code>restart: unless-stopped</code>. The image installs Claude Code from npm. Add other npm CLIs with <code>EXTRA_NPM_CLIS='@openai/codex @google/gemini-cli' docker compose build</code>, and pass an <code>agy</code> install command as <code>AGY_INSTALL_CMD='...'</code>.</p>
 <p>Containers are isolated: to reuse CLI logins, mount the CLI credential folders into the container, use API keys, or deploy natively.</p>
 <h3 id="pm2">PM2</h3>
-<div class="highlight"><pre><span></span><code>npm<span class="w"> </span>install<span class="w"> </span>-g<span class="w"> </span>pm2
-pm2<span class="w"> </span>start<span class="w"> </span>ecosystem.config.cjs
-pm2<span class="w"> </span>save<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>pm2<span class="w"> </span>startup
-</code></pre></div><div class="pager"><span>← <a href="security.html">Security</a></span><span><a href="troubleshooting.html">Troubleshooting</a> →</span></div></main></div>
+<pre class="highlight"><code class="language-sh">npm install -g pm2
+pm2 start ecosystem.config.cjs
+pm2 save &amp;&amp; pm2 startup</code></pre><div class="pager"><span>← <a href="security.html">Security</a></span><span><a href="troubleshooting.html">Troubleshooting</a> →</span></div></main></div>
 <footer>AgentBridge is open source under the MIT license.</footer>
 <script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.className='copy';b.textContent='Copy';b.onclick=function(){navigator.clipboard.writeText(p.innerText.replace(/Copy$/,'').trimEnd()).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)})};p.appendChild(b)})</script>
 </body></html>

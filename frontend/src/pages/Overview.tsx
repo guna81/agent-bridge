@@ -85,7 +85,7 @@ export default function Overview({ settings, go }: { settings: AdminSettings; go
     ];
     try {
       const previous: string[] = JSON.parse(sessionStorage.getItem("proxy.alerts") || "[]");
-      for (const alert of alerts) if (!previous.includes(alert.id)) new Notification("Gateway budget alert", { body: alert.message });
+      for (const alert of alerts) if (!previous.includes(alert.id)) new Notification("CLI proxy budget alert", { body: alert.message });
       sessionStorage.setItem("proxy.alerts", JSON.stringify(alerts.map((a) => a.id)));
     } catch { /* browser notifications or storage unavailable */ }
   }, [users, keys, notificationPermission, alertsLoaded]);
@@ -103,23 +103,23 @@ export default function Overview({ settings, go }: { settings: AdminSettings; go
       <div className="page-head">
         <div>
           <h1>Overview</h1>
-          <p className="muted">Subscription limits, gateway spend, traffic and provider health at a glance.</p>
+          <p className="muted">Subscription limits, CLI proxy spend, traffic and provider health at a glance.</p>
         </div>
         <div className="row"><button className="ghost" onClick={() => { void load(); refreshUsage(); }}>Refresh</button>{notificationPermission === "default" && <button className="ghost" onClick={() => void Notification.requestPermission().then(setNotificationPermission)}>Enable browser budget alerts</button>}</div>
       </div>
       <ErrorNote message={error} />
 
       <div className="stats">
-        <Stat label="Gateway spend today" value={loaded ? money(today?.cost_usd ?? 0) : "—"} sub={loaded ? `${num(today?.requests ?? 0)} request${today?.requests === 1 ? "" : "s"}` : "Loading…"} />
-        <Stat label={`Gateway spend, last ${range} days`} value={loaded ? money(period.cost) : "—"} sub={loaded ? `${num(period.req)} requests · ${compact(period.tok)} tokens` : "Loading…"} />
-        <Stat label="Gateway credits remaining" value={loaded ? money(credits) : "—"} sub={loaded ? `across ${users.length} user${users.length === 1 ? "" : "s"}` : "Loading…"} />
+        <Stat label="CLI proxy spend today" value={loaded ? money(today?.cost_usd ?? 0) : "—"} sub={loaded ? `${num(today?.requests ?? 0)} request${today?.requests === 1 ? "" : "s"}` : "Loading…"} />
+        <Stat label={`CLI proxy spend, last ${range} days`} value={loaded ? money(period.cost) : "—"} sub={loaded ? `${num(period.req)} requests · ${compact(period.tok)} tokens` : "Loading…"} />
+        <Stat label="CLI proxy credits remaining" value={loaded ? money(credits) : "—"} sub={loaded ? `across ${users.length} user${users.length === 1 ? "" : "s"}` : "Loading…"} />
         <Stat label="Running now" value={`${statusBarData?.queue.running ?? settings.queue.running} / ${statusBarData?.queue.max_concurrency ?? settings.queue.max_concurrency}`} sub={`${statusBarData?.queue.waiting ?? settings.queue.waiting} queued`} />
       </div>
 
-      {(lowCredits.length > 0 || nearLimit.length > 0) && <div className="note warn"><strong>Budget attention:</strong> {lowCredits.length > 0 && `${lowCredits.length} user(s) have under $1 in available credits. `}{nearLimit.length > 0 && `${nearLimit.length} key(s) have used at least 80% of a budget.`} <button className="link" onClick={() => go("keys")}>Review API keys and users →</button></div>}
+      {(lowCredits.length > 0 || nearLimit.length > 0) && <div className="note warn"><strong>Budget attention:</strong> {lowCredits.length > 0 && `${lowCredits.length} user(s) have under $1 in available credits. `}{nearLimit.length > 0 && `${nearLimit.length} key(s) have used at least 80% of a budget.`} <button className="link" onClick={() => go("keys")}>Review keys &amp; users →</button></div>}
 
       <section className="card">
-        <div className="card-head"><div><h2>Subscription usage</h2><p className="muted small">Remaining capacity for tracked agents. Separate from gateway credits.</p></div><button className="link" onClick={() => go("subscription")}>View all usage →</button></div>
+        <div className="card-head"><div><h2>Subscription usage</h2><p className="muted small">Remaining capacity for tracked agents. Separate from CLI proxy credits.</p></div><button className="link" onClick={() => go("subscription")}>View all usage →</button></div>
         {usageError && <p className="muted small">Unable to refresh subscription usage{statusBarData ? "; showing the last result" : ""}.</p>}
         {!statusBarData && !usageError && <p className="muted small">Loading subscription usage…</p>}
         {statusBarData && (() => {

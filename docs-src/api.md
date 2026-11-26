@@ -98,6 +98,9 @@ Bearer admin token. Main routes:
 - `GET /admin/ledger`, `GET /admin/usage/daily`
 - `GET|POST|PUT|DELETE /admin/providers...`
 - `GET /admin/reservations`, `DELETE /admin/reservations/{request_id}`
+- `GET|POST /admin/skills`, `PUT /admin/skills/{kind}/{name}`, `POST /admin/skills/{kind}/{name}/validate`
+- `POST /admin/skills/link`, `POST /admin/skills/{kind}/{name}/link`, `POST /admin/skills/{kind}/{name}/unlink`
+- `POST /admin/skills/instructions/apply`, `POST /admin/skills/instructions/remove`
 
 New ledger rows include duration, failure code where available, and the resolved model and rates used for estimated charges. Historical rows may not have these details.
 

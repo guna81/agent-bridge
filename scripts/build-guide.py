@@ -15,7 +15,8 @@ out = root / "docs" / "guide"
 NAV = [
     ("Getting started", [("install", "Install"), ("quickstart", "Quick start"), ("cli", "Command line")]),
     ("Using the app", [("dashboard", "Dashboard"), ("subscription-usage", "Subscription usage"),
-                       ("status-indicator", "Status indicator"), ("providers", "Providers"), ("models", "Models")]),
+                       ("status-indicator", "Status indicator"), ("skills-and-instructions", "Skills and instructions"),
+                       ("providers", "Providers"), ("models", "Models")]),
     ("API and gateway", [("api", "API reference"), ("keys-and-users", "Keys, users and budgets"),
                          ("raw-vs-agent-mode", "Raw vs agent mode")]),
     ("Reference and operations", [("configuration", "Configuration"), ("security", "Security"),

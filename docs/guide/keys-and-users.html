@@ -45,9 +45,9 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 .tabbed-set>input:nth-child(1):checked~.tabbed-labels>label:nth-child(1){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(1):checked~.tabbed-content>.tabbed-block:nth-child(1){display:block}.tabbed-set>input:nth-child(2):checked~.tabbed-labels>label:nth-child(2){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(2):checked~.tabbed-content>.tabbed-block:nth-child(2){display:block}.tabbed-set>input:nth-child(3):checked~.tabbed-labels>label:nth-child(3){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(3):checked~.tabbed-content>.tabbed-block:nth-child(3){display:block}.tabbed-set>input:nth-child(4):checked~.tabbed-labels>label:nth-child(4){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(4):checked~.tabbed-content>.tabbed-block:nth-child(4){display:block}.tabbed-set>input:nth-child(5):checked~.tabbed-labels>label:nth-child(5){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(5):checked~.tabbed-content>.tabbed-block:nth-child(5){display:block}.tabbed-set>input:nth-child(6):checked~.tabbed-labels>label:nth-child(6){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(6):checked~.tabbed-content>.tabbed-block:nth-child(6){display:block}</style></head><body>
 <header class="top"><a class="brand" href="../"><img src="../assets/agentbridge-icon.svg" alt="">AgentBridge</a>
 <nav><a href="index.html">Docs</a><a href="https://github.com/guna81/agent-bridge/releases/latest">Releases</a><a href="https://github.com/guna81/agent-bridge">GitHub</a></nav></header>
-<div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html">Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html" class=on>Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html">Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
+<div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html">Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="skills-and-instructions.html">Skills and instructions</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html" class=on>Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html">Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
 <main><h1 id="keys-users-and-budgets">Keys, users and budgets</h1>
-<p>Access is controlled with users, API keys and a credit ledger. Manage them under <strong>API keys &amp; users</strong> in the dashboard, or through the <a href="api.html#admin-api">admin API</a>.</p>
+<p>Access is controlled with users, API keys and a credit ledger. Manage them under <strong>Keys &amp; users</strong> in the dashboard, or through the <a href="api.html#admin-api">admin API</a>.</p>
 <h2 id="users-and-credits">Users and credits</h2>
 <p>Add a user, then add credits. Requests are charged against the caller's credits. The available balance excludes outstanding reservations.</p>
 <h2 id="api-keys">API keys</h2>
@@ -87,19 +87,18 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:43187/admin/keys<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$ADMIN</span><span class="s2">"</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{</span>
-<span class="s1">  "user_id": 1, "label": "ci",</span>
-<span class="s1">  "budget_usd": 2.0, "daily_budget_usd": 0.5, "monthly_budget_usd": 1.5,</span>
-<span class="s1">  "expires_in_days": 30,</span>
-<span class="s1">  "allowed_models": ["claude/haiku", "codex/*"]</span>
-<span class="s1">}'</span>
+<pre class="highlight"><code class="language-sh">curl -s http://127.0.0.1:43187/admin/keys \
+  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{
+  "user_id": 1, "label": "ci",
+  "budget_usd": 2.0, "daily_budget_usd": 0.5, "monthly_budget_usd": 1.5,
+  "expires_in_days": 30,
+  "allowed_models": ["claude/haiku", "codex/*"]
+}'
 
-<span class="c1"># null clears a limit; omitted fields are left alone</span>
-curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>PATCH<span class="w"> </span>http://127.0.0.1:43187/admin/keys/3<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$ADMIN</span><span class="s2">"</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"budget_usd": null}'</span>
-</code></pre></div>
+# null clears a limit; omitted fields are left alone
+curl -s -X PATCH http://127.0.0.1:43187/admin/keys/3 \
+  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
+  -d '{"budget_usd": null}'</code></pre>
 <table>
 <thead>
 <tr>

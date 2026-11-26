@@ -6,6 +6,7 @@
 |---|---|
 | Data, database, secrets, logs | `~/.agentbridge` (override with `AGENTBRIDGE_HOME`) |
 | Status indicator settings | `status_bar_config.json` in the data directory |
+| Skills and instructions | `~/.agentbridge/agents` (or `$AGENTBRIDGE_HOME/agents`), whatever the data directory |
 | Logs | `tray.log` (Windows/Linux), `status-bar.log` (macOS), `autostart.log` |
 | Source server settings | `backend/.env` (copy from `.env.example`) |
 

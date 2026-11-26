@@ -20,9 +20,9 @@ export default function QuickStart({ go }: { go: (t: Tab) => void }) {
     <>
       <div className="page-head">
         <div>
-          <h1>API quick start</h1>
+          <h1>Quick start</h1>
           <p className="muted">
-            Point any OpenAI- or Anthropic-compatible client at this server. Use an API key from the API keys & users page; examples use <code>{model}</code>.
+            Point any OpenAI- or Anthropic-compatible client at this server. Use an API key from Keys &amp; users; examples use <code>{model}</code>.
           </p>
         </div>
       </div>

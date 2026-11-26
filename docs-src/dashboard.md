@@ -11,11 +11,13 @@ Open it with `agentbridge dashboard`. The command signs you in automatically: th
 | **Overview** | See credits and budget warnings. Warns when available credits drop below $1 or a key has used 80% of a budget. Optional browser alerts need browser permission and the page to be open; checks refresh every minute. |
 | **Subscription usage** | View 5-hour and weekly limits and reset times. See [Subscription usage](subscription-usage.md). |
 | **Status indicator** | Configure the menu bar or tray display. See [Status indicator](status-indicator.md). |
+| **Instructions** | Edit global and per-agent instructions and link them into Claude Code, Codex and Antigravity. See [Skills and instructions](skills-and-instructions.md). |
+| **Skills** | Create, validate, edit and symlink shared skills and Claude Code wrappers. See [Skills and instructions](skills-and-instructions.md). |
 | **Providers** | Enable providers, choose sign-in, models, default mode and advanced settings. See [Providers](providers.md). |
-| **API keys & users** | Add users, add credits, create and limit keys. See [Keys, users and budgets](keys-and-users.md). |
+| **Keys & users** | Add users, add credits, create and limit keys. See [Keys, users and budgets](keys-and-users.md). |
 | **Request usage** | Inspect request history, outstanding reservations and export CSV. |
 | **Playground** | Chat with any enabled model and estimate cost. |
-| **API quick start** | Copy-paste client code. |
+| **Quick start** | Copy-paste client code. |
 
 ### Subscription usage
 
