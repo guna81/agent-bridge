@@ -31,7 +31,7 @@ export default function Providers({ settings }: { settings: AdminSettings }) {
       <div className="page-head">
         <div>
           <h1>Providers</h1>
-          <p className="muted">Configure where API gateway requests are routed as <code>provider/model</code>. Subscription usage tracking is configured separately.</p>
+          <p className="muted">Configure where CLI proxy requests are routed as <code>provider/model</code>. Subscription usage tracking is configured separately.</p>
         </div>
         <button className="primary" onClick={() => setAdding(true)}>
           Add custom CLI

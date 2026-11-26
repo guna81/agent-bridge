@@ -47,7 +47,7 @@ curl http://127.0.0.1:43187/healthz     # should return 200
     Release binaries are unsigned. Verify the download came from the project's releases page before allowing it.
 
 ??? question "`429 key_budget_exhausted` / `403 model_not_allowed` / `401`"
-    The key is over budget, not allowed for that model, or expired or invalid. Adjust it under **API keys & users**. See [Keys, users and budgets](keys-and-users.md).
+    The key is over budget, not allowed for that model, or expired or invalid. Adjust it under **Keys & users**. See [Keys, users and budgets](keys-and-users.md).
 
 ??? question "Images are rejected with 400"
     Images must be inline base64, and only `claude`, `codex` and the direct-API backend accept them. CLI providers accept images only in the last user message.

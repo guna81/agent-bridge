@@ -30,7 +30,7 @@ In the dashboard open **Providers**:
 
 ## 4. Create an API key
 
-In **API keys & users**:
+In **Keys & users**:
 
 1. Add a user.
 2. Add credits.
@@ -75,10 +75,11 @@ Use a `provider/model` ID such as `claude/haiku`.
     print(reply.content[0].text)
     ```
 
-You can also chat from the dashboard's **Playground**, and **API quick start** has copy-paste code for your setup.
+You can also chat from the dashboard's **Playground**, and **Quick start** has copy-paste code for your setup.
 
 ## Next steps
 
+- [Skills and instructions](skills-and-instructions.md)
 - [Providers](providers.md) and [Models](models.md)
 - [API reference](api.md)
 - [Budgets and limits](keys-and-users.md)

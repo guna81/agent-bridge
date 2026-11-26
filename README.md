@@ -2,10 +2,10 @@
 
 <h1 align="center">AgentBridge</h1>
 
-<p align="center">Track AI agent subscription usage and connect your tools to a local API gateway.</p>
+<p align="center">Track AI agent subscription usage, manage shared skills and instructions, and connect your tools to a local CLI proxy.</p>
 <p align="center"><a href="https://guna81.github.io/agent-bridge/">Website</a> · <a href="https://guna81.github.io/agent-bridge/guide/">Documentation</a> · <a href="https://github.com/guna81/agent-bridge/releases/latest">Latest release</a> · <a href="docs/releases.md">Release guide</a></p>
 
-AgentBridge brings two workflows together: monitor available subscription usage for supported coding agents, and expose configured agent CLIs through OpenAI-compatible and Anthropic-compatible APIs. The CLI runs a local gateway, opens a web dashboard, and can show usage in the macOS menu bar or a Windows or Linux system tray.
+AgentBridge brings three workflows together: monitor available subscription usage for supported coding agents, edit and sync shared skills and global instructions across Claude Code, Codex, and Antigravity, and expose configured agent CLIs through OpenAI-compatible and Anthropic-compatible APIs. The CLI runs a local gateway, opens a web dashboard, and can show usage in the macOS menu bar or a Windows or Linux system tray.
 
 <p align="center">
   <img src="docs/assets/ui-dashboard.png" alt="AgentBridge Web Dashboard Overview" width="850">
@@ -51,7 +51,8 @@ The installers download the [latest release](https://github.com/guna81/agent-bri
      <img src="docs/assets/ui-subscription-usage.png" alt="Subscription usage view in dashboard" width="800">
    </p>
 
-4. To use the gateway from another app, add a user and create a key under **API keys & users**. Point an OpenAI-compatible client at `http://127.0.0.1:43187/v1` and use a `provider/model` identifier. The **API quick start** and **Playground** pages provide examples.
+4. To use the CLI proxy from another app, add a user and create a key under **Keys & users**. Point an OpenAI-compatible client at `http://127.0.0.1:43187/v1` and use a `provider/model` identifier. The **Quick start** and **Playground** pages provide examples.
+5. To share instructions or skills across Claude Code, Codex, and Antigravity, open **Instructions** or **Skills** in the dashboard to edit, validate, and link them into each agent.
 
 Provider API keys and personal CLI logins are available: choose the sign-in method separately for each provider in the dashboard. Newly created built-in providers are configured to reuse local CLI logins. The dashboard command opens the app signed in; for manual sign-in use `agentbridge dashboard --show-token` and keep the token private.
 
@@ -86,7 +87,8 @@ The indicator shows remaining capacity: its bars shrink as usage increases. The 
 ## Features
 
 - **Subscription usage**: view available 5-hour and weekly limits and reset times for supported providers.
-- **Local API gateway**: OpenAI-compatible `/v1/chat/completions` and Anthropic-compatible `/v1/messages`, including streaming.
+- **Shared skills and instructions**: edit global and per-agent instructions and `SKILL.md` files in one place, validate them, apply marked instruction blocks, and symlink skills into Claude Code, Codex, and Antigravity.
+- **Local CLI proxy**: OpenAI-compatible `/v1/chat/completions` and Anthropic-compatible `/v1/messages`, including streaming.
 - **Providers**: Claude Code, Codex, Antigravity, Gemini CLI, custom CLIs, and supported direct API backends.
 - **Access and accounting**: users, hashed API keys, credit ledger, budgets, expiry, and model restrictions.
 - **Operations**: request history, usage export, Prometheus metrics, SQLite or PostgreSQL, and optional Redis queues.
@@ -149,8 +151,8 @@ Open http://127.0.0.1:8000 and sign in with the admin token (`PROXY_ADMIN_TOKEN`
 **Then, in the UI (about two minutes):**
 
 1. **Providers** → switch on a provider, then press **Run test**. Test runs are logged but not charged.
-2. **API keys & users** → add a user, add credits, create a key (shown once).
-3. **Playground** → chat with it, or open **API quick start** for copy-paste client code.
+2. **Keys & users** → add a user, add credits, create a key (shown once).
+3. **Playground** → chat with it, or open **Quick start** for copy-paste client code.
 
 And from your own code:
 
@@ -221,8 +223,8 @@ verify for Linux, so pass its install command from Google's docs as `AGY_INSTALL
    - **CLI login** (needs `PROXY_SINGLE_USER_PERSONAL_USE=true`): tick *Reuse this machine's existing CLI login*, or
      click **Connect account** to run the CLI's login in a terminal on the server and finish it in your browser.
 3. Open the card and press **Run test**. Test runs are logged but not charged.
-4. **API keys & users** → add a user, add credits, create a key (shown once; stored hashed).
-5. **Playground** → chat with any enabled model, or see **API quick start** in the UI for copy-paste client code.
+4. **Keys & users** → add a user, add credits, create a key (shown once; stored hashed).
+5. **Playground** → chat with any enabled model, or see **Quick start** in the UI for copy-paste client code.
 
 **Codex model discovery:** An enabled Codex CLI provider using the shared host CLI login discovers the
 visible models from Codex app-server at startup and every 30 minutes. Use **Refresh discovered models**
@@ -307,7 +309,9 @@ Reservations remain in the database after an unclean shutdown to avoid silently 
 ### Admin API
 
 Bearer admin token. `GET|POST /admin/users`, `POST /admin/users/{id}/topup`, `GET|POST /admin/keys`,
-`PATCH|DELETE /admin/keys/{id}`, `GET /admin/ledger`, `GET /admin/usage/daily`, `GET|POST|PUT|DELETE /admin/providers…`.
+`PATCH|DELETE /admin/keys/{id}`, `GET /admin/ledger`, `GET /admin/usage/daily`, `GET|POST|PUT|DELETE /admin/providers…`,
+`GET|POST /admin/skills`, `PUT /admin/skills/{kind}/{name}`, `POST /admin/skills/{kind}/{name}/validate`,
+`POST /admin/skills/link`, `POST /admin/skills/{kind}/{name}/link|unlink`, `POST /admin/skills/instructions/apply|remove`.
 Interactive reference at `/docs`. New ledger rows include duration, failure code where available, and the resolved model and rates used for estimated charges; historical rows may not contain these details.
 
 ### Routing and estimates

@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     # directories the UI may serve
     frontend_dist: Path = Path("../frontend/dist")
 
+    # Skills and instructions always live in ~/.agentbridge/agents (see app.skills.skills_home).
+    # Tests only: point them at a temp folder instead.
+    skills_dir: Path | None = None
+    # Home folder whose ~/.claude, ~/.codex and ~/.gemini receive skills and instructions (tests point it elsewhere).
+    agents_home: Path | None = None
+
     @property
     def db_url(self) -> str:
         return self.database_url or f"sqlite:///{(self.data_dir / 'proxy.db').resolve()}"

@@ -1,8 +1,9 @@
 # AgentBridge
 
-AgentBridge brings two workflows together:
+AgentBridge brings three workflows together:
 
 - **Track subscription usage** for supported coding agents (Claude Code, Codex, Antigravity and others): 5-hour and weekly limits and their reset times.
+- **Manage shared skills and instructions** across Claude Code, Codex and Antigravity from one folder, with live validation, symlinking and marked instruction blocks.
 - **Expose agent CLIs as an API.** A local gateway offers OpenAI-compatible (`/v1/chat/completions`) and Anthropic-compatible (`/v1/messages`) endpoints on top of the CLIs you have configured.
 
 Everything runs on your machine. The `agentbridge` command starts the gateway, opens a web dashboard and shows usage in the macOS menu bar or the Windows/Linux system tray.
@@ -18,6 +19,7 @@ Everything runs on your machine. The `agentbridge` command starts the gateway, o
 | Install AgentBridge | [Install](install.md) |
 | Get a first request working in a few minutes | [Quick start](quickstart.md) |
 | See my Claude or Codex limits in the menu bar | [Status indicator](status-indicator.md) |
+| Share skills and global instructions across agents | [Skills and instructions](skills-and-instructions.md) |
 | Point my own code or tools at the gateway | [API reference](api.md) |
 | Set spending limits for a key | [Keys, users and budgets](keys-and-users.md) |
 | Keep the gateway running all the time | [Deployment](deployment.md) |
@@ -29,7 +31,7 @@ Everything runs on your machine. The `agentbridge` command starts the gateway, o
  your app / SDK ──HTTP──▶  AgentBridge gateway  ──subprocess──▶  claude / codex / agy / gemini
  (OpenAI or Anthropic        127.0.0.1:43187                       (your existing CLI logins)
   client library)                 │
-                                  ├── web dashboard (providers, keys, usage, playground)
+                                  ├── web dashboard (usage, skills, instructions, providers, keys, playground)
                                   └── menu bar / tray indicator (subscription usage)
 ```
 

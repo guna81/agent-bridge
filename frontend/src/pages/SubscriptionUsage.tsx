@@ -21,7 +21,7 @@ export default function SubscriptionUsage({ go }: { go: (tab: Tab) => void }) {
     return () => window.clearInterval(timer);
   }, [load]);
   return <>
-    <div className="page-head"><div><h1>Subscription usage</h1><p className="muted">Remaining agent subscription limits. These are separate from API gateway request costs.</p></div><button className="ghost" onClick={() => void load()}>Refresh</button></div>
+    <div className="page-head"><div><h1>Subscription usage</h1><p className="muted">Remaining agent subscription limits. These are separate from CLI proxy request costs.</p></div><button className="ghost" onClick={() => void load()}>Refresh</button></div>
     <ErrorNote message={error ? `Unable to refresh subscription usage: ${error}${data ? " (showing the last result)" : ""}` : ""} />
     {(data || loading) && <CliRateLimitsCard rateLimits={data?.rate_limits} loading={loading} onOpenConfig={() => go("statusbar")} />}
   </>;

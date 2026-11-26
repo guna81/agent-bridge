@@ -12,6 +12,10 @@ cd ../frontend && npm install
 Run the server with `uv run python run.py` (from `backend/`, after setting `PROXY_SECRET_KEY`; see the README) and
 the UI dev server with `npm run dev` (from `frontend/`; set `VITE_BACKEND` if the proxy is not on port 8000).
 
+Or run both with live reload from the repo root: `./scripts/dev.sh`. The gateway restarts when `backend/app` changes,
+the dashboard hot-reloads at http://localhost:5173 and opens already signed in (`NO_OPEN=1` skips that), and Ctrl+C
+stops both.
+
 ## Before you open a pull request
 
 ```bash

@@ -48,8 +48,8 @@ export default function Keys({ go, usageOnly = false }: { go: (t: Tab) => void; 
     <>
       <div className="page-head">
         <div>
-          <h1>{usageOnly ? "Request usage" : "API keys & users"}</h1>
-          <p className="muted">{usageOnly ? "Explore gateway requests, costs, and usage. Subscription limits are shown separately." : "Users hold credits; each API key belongs to a user and can carry its own limits."}</p>
+          <h1>{usageOnly ? "Request usage" : "Keys & users"}</h1>
+          <p className="muted">{usageOnly ? "Explore CLI proxy requests, costs, and usage. Subscription limits are shown separately." : "Users hold credits; each API key belongs to a user and can carry its own limits."}</p>
         </div>
         {!usageOnly && <div className="row">
           <button className="ghost" onClick={() => setDialog({ kind: "user" })}>

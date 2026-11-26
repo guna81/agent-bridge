@@ -146,6 +146,115 @@ async def update_status_bar_config(body: dict):
     return new_cfg.model_dump()
 
 
+class SkillSave(BaseModel):
+    text: str = Field(max_length=512 * 1024)
+    base: str | None = None  # the text the editor loaded; rejects the save if the file changed since
+
+
+class SkillValidate(BaseModel):
+    text: str = Field(max_length=512 * 1024)
+
+
+class SkillCreate(BaseModel):
+    name: str
+    description: str = Field(max_length=2048)
+    wrapper_name: str | None = None
+    tools: str = Field(default="", max_length=500)
+    link: bool = True
+
+
+def _skills_call(fn):
+    from ..skills import SkillsError
+    try:
+        return fn()
+    except SkillsError as e:
+        raise ProxyError(400, str(e), code="invalid_skill")
+    except OSError as e:
+        raise ProxyError(500, f"Could not update the skills folder: {e}", "server_error", code="skills_io")
+
+
+@router.get("/skills")
+def get_skills():
+    from ..skills import repo_from_settings
+    return _skills_call(lambda: repo_from_settings().state())
+
+
+@router.post("/skills/{kind}/{name}/validate")
+def validate_skill(kind: str, name: str, body: SkillValidate):
+    from ..skills import check_name, repo_from_settings
+    return _skills_call(lambda: repo_from_settings().validate(kind, check_name(name), body.text))
+
+
+@router.put("/skills/{kind}/{name}")
+def save_skill(kind: str, name: str, body: SkillSave):
+    from ..skills import repo_from_settings
+    repo = repo_from_settings()
+    _skills_call(lambda: repo.save(kind, name, body.text, body.base))
+    return _skills_call(repo.state)
+
+
+@router.post("/skills")
+def create_skill(body: SkillCreate):
+    from ..skills import repo_from_settings
+    repo = repo_from_settings()
+    _skills_call(lambda: repo.create(body.name, body.description, body.wrapper_name or None, body.tools))
+    links = _skills_call(repo.link_all) if body.link else None
+    return {"links": links, "state": _skills_call(repo.state)}
+
+
+@router.post("/skills/link")
+def link_skills():
+    from ..skills import repo_from_settings
+    repo = repo_from_settings()
+    links = _skills_call(repo.link_all)
+    return {"links": links, "state": _skills_call(repo.state)}
+
+
+class SkillLinkTargets(BaseModel):
+    targets: list[str] | None = None  # agent ids for a skill; every agent when omitted. Ignored for wrappers.
+
+
+@router.post("/skills/{kind}/{name}/link")
+def link_one_skill(kind: str, name: str, body: SkillLinkTargets):
+    from ..skills import repo_from_settings
+    repo = repo_from_settings()
+    links = _skills_call(lambda: repo.link_one(kind, name, body.targets))
+    return {"links": links, "state": _skills_call(repo.state)}
+
+
+@router.post("/skills/{kind}/{name}/unlink")
+def unlink_one_skill(kind: str, name: str, body: SkillLinkTargets):
+    from ..skills import repo_from_settings
+    repo = repo_from_settings()
+    links = _skills_call(lambda: repo.unlink_one(kind, name, body.targets))
+    return {"links": links, "state": _skills_call(repo.state)}
+
+
+class InstructionsApply(BaseModel):
+    targets: list[str] | None = None  # agent ids; all agents when omitted
+    force: bool = False  # overwrite blocks that were edited by hand
+
+
+@router.post("/skills/instructions/apply")
+def apply_instructions(body: InstructionsApply):
+    from ..skills import repo_from_settings
+    repo = repo_from_settings()
+    results = _skills_call(lambda: repo.apply_instructions(body.targets, body.force))
+    return {"results": results, "state": _skills_call(repo.state)}
+
+
+class InstructionsRemove(BaseModel):
+    target: str
+
+
+@router.post("/skills/instructions/remove")
+def remove_instructions(body: InstructionsRemove):
+    from ..skills import repo_from_settings
+    repo = repo_from_settings()
+    result = _skills_call(lambda: repo.remove_instructions(body.target))
+    return {"results": [result], "state": _skills_call(repo.state)}
+
+
 @router.get("/status-bar")
 def get_status_bar_data(request: Request):
     from ..rate_limits_reader import get_all_cli_rate_limits

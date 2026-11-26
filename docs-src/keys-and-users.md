@@ -1,6 +1,6 @@
 # Keys, users and budgets
 
-Access is controlled with users, API keys and a credit ledger. Manage them under **API keys & users** in the dashboard, or through the [admin API](api.md#admin-api).
+Access is controlled with users, API keys and a credit ledger. Manage them under **Keys & users** in the dashboard, or through the [admin API](api.md#admin-api).
 
 ## Users and credits
 

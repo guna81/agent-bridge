@@ -45,7 +45,7 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 .tabbed-set>input:nth-child(1):checked~.tabbed-labels>label:nth-child(1){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(1):checked~.tabbed-content>.tabbed-block:nth-child(1){display:block}.tabbed-set>input:nth-child(2):checked~.tabbed-labels>label:nth-child(2){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(2):checked~.tabbed-content>.tabbed-block:nth-child(2){display:block}.tabbed-set>input:nth-child(3):checked~.tabbed-labels>label:nth-child(3){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(3):checked~.tabbed-content>.tabbed-block:nth-child(3){display:block}.tabbed-set>input:nth-child(4):checked~.tabbed-labels>label:nth-child(4){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(4):checked~.tabbed-content>.tabbed-block:nth-child(4){display:block}.tabbed-set>input:nth-child(5):checked~.tabbed-labels>label:nth-child(5){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(5):checked~.tabbed-content>.tabbed-block:nth-child(5){display:block}.tabbed-set>input:nth-child(6):checked~.tabbed-labels>label:nth-child(6){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(6):checked~.tabbed-content>.tabbed-block:nth-child(6){display:block}</style></head><body>
 <header class="top"><a class="brand" href="../"><img src="../assets/agentbridge-icon.svg" alt="">AgentBridge</a>
 <nav><a href="index.html">Docs</a><a href="https://github.com/guna81/agent-bridge/releases/latest">Releases</a><a href="https://github.com/guna81/agent-bridge">GitHub</a></nav></header>
-<div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html" class=on>Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html">Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html">Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
+<div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html" class=on>Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="skills-and-instructions.html">Skills and instructions</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html">Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html">Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
 <main><h1 id="dashboard">Dashboard</h1>
 <p>Open it with <code>agentbridge dashboard</code>. The command signs you in automatically: the token travels in a URL fragment, which the browser never sends to the server and the dashboard removes after loading.</p>
 <p><img alt="AgentBridge Dashboard Overview" src="../assets/ui-dashboard.png" /></p>
@@ -71,11 +71,19 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 <td>Configure the menu bar or tray display. See <a href="status-indicator.html">Status indicator</a>.</td>
 </tr>
 <tr>
+<td><strong>Instructions</strong></td>
+<td>Edit global and per-agent instructions and link them into Claude Code, Codex and Antigravity. See <a href="skills-and-instructions.html">Skills and instructions</a>.</td>
+</tr>
+<tr>
+<td><strong>Skills</strong></td>
+<td>Create, validate, edit and symlink shared skills and Claude Code wrappers. See <a href="skills-and-instructions.html">Skills and instructions</a>.</td>
+</tr>
+<tr>
 <td><strong>Providers</strong></td>
 <td>Enable providers, choose sign-in, models, default mode and advanced settings. See <a href="providers.html">Providers</a>.</td>
 </tr>
 <tr>
-<td><strong>API keys &amp; users</strong></td>
+<td><strong>Keys &amp; users</strong></td>
 <td>Add users, add credits, create and limit keys. See <a href="keys-and-users.html">Keys, users and budgets</a>.</td>
 </tr>
 <tr>
@@ -87,7 +95,7 @@ footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var
 <td>Chat with any enabled model and estimate cost.</td>
 </tr>
 <tr>
-<td><strong>API quick start</strong></td>
+<td><strong>Quick start</strong></td>
 <td>Copy-paste client code.</td>
 </tr>
 </tbody>

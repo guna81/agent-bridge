@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skills and instructions · AgentBridge Docs</title><link rel="icon" href="../assets/agentbridge-icon.svg">
+<style>
+:root{color-scheme:dark;--bg:#0c0d10;--surface:#15171c;--surface2:#1a1d24;--text:#f5f6f8;--muted:#a9afba;--accent:#8aafff;--line:#30343d}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+a{color:var(--accent)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+.brand{display:flex;gap:10px;align-items:center;font-weight:750;letter-spacing:-.03em;text-decoration:none;color:var(--text)}
+.brand img{width:30px;height:30px}.top nav a{color:var(--muted);text-decoration:none;font-size:.88rem;margin-left:20px}.top nav a:hover{color:var(--text)}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:48px;max-width:1160px;margin:auto;padding:0 24px}
+.side{position:sticky;top:67px;align-self:start;max-height:calc(100vh - 67px);overflow:auto;padding:28px 0}
+.side h4{margin:22px 0 6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.side h4:first-child{margin-top:0}
+.side a{display:block;padding:5px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:.9rem}
+.side a:hover{color:var(--text);background:var(--surface)}.side a.on{color:var(--accent);background:var(--surface2)}
+main{padding:36px 0 80px;min-width:0;max-width:820px}
+main img{max-width:100%;height:auto;border-radius:10px;border:1px solid var(--line);margin:18px 0;box-shadow:0 12px 32px #00000040}
+h1{font-size:2.4rem;letter-spacing:-.05em;line-height:1.15;margin:0 0 20px}
+h2{font-size:1.5rem;letter-spacing:-.03em;margin:44px 0 12px;padding-top:6px}
+h3{font-size:1.15rem;margin:30px 0 8px}
+p,li{color:#d6dae2}li{margin:4px 0}
+code{font:.85em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--surface2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:#d0ddf4}
+pre{background:#0b0d12;border:1px solid #303744;border-radius:10px;padding:16px;overflow:auto;position:relative}
+pre code{background:none;border:0;padding:0;font-size:.82rem;line-height:1.65}
+.copy{position:absolute;top:8px;right:8px;background:#2a3446;border:0;color:#e6ebf4;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:.72rem}
+.copy:hover{background:#3a4a63}
+table{border-collapse:collapse;width:100%;font-size:.9rem;display:block;overflow-x:auto;margin:16px 0}
+th,td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}th{background:var(--surface)}
+.admonition{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;background:var(--surface);padding:2px 16px;margin:20px 0}
+.admonition.warning{border-left-color:#e0a84a}.admonition.danger{border-left-color:#e06b6b}.admonition.tip{border-left-color:#5fc59a}
+.admonition-title{font-weight:700;margin:10px 0 0!important}
+details{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 16px;margin:10px 0}
+summary{cursor:pointer;padding:12px 0;font-weight:600}
+.tabbed-set{margin:18px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.tabbed-set>input{position:absolute;opacity:0;pointer-events:none}
+.tabbed-labels{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabbed-labels>label{padding:10px 16px;cursor:pointer;color:var(--muted);font-size:.88rem;font-weight:600;border-bottom:2px solid transparent}
+.tabbed-content>.tabbed-block{display:none;padding:0 16px 8px}
+.tabbed-block pre{margin:12px 0}
+.pager{display:flex;justify-content:space-between;gap:16px;margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-size:.9rem}
+footer{border-top:1px solid var(--line);padding:24px;text-align:center;color:var(--muted);font-size:.82rem}
+@media(max-width:820px){.layout{grid-template-columns:1fr;gap:0}.side{position:static;max-height:none;padding:16px 0;border-bottom:1px solid var(--line)}h1{font-size:1.9rem}.top nav a:not(:last-child){display:none}}
+.tabbed-set>input:nth-child(1):checked~.tabbed-labels>label:nth-child(1){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(1):checked~.tabbed-content>.tabbed-block:nth-child(1){display:block}.tabbed-set>input:nth-child(2):checked~.tabbed-labels>label:nth-child(2){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(2):checked~.tabbed-content>.tabbed-block:nth-child(2){display:block}.tabbed-set>input:nth-child(3):checked~.tabbed-labels>label:nth-child(3){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(3):checked~.tabbed-content>.tabbed-block:nth-child(3){display:block}.tabbed-set>input:nth-child(4):checked~.tabbed-labels>label:nth-child(4){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(4):checked~.tabbed-content>.tabbed-block:nth-child(4){display:block}.tabbed-set>input:nth-child(5):checked~.tabbed-labels>label:nth-child(5){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(5):checked~.tabbed-content>.tabbed-block:nth-child(5){display:block}.tabbed-set>input:nth-child(6):checked~.tabbed-labels>label:nth-child(6){color:var(--accent);border-bottom-color:var(--accent)}.tabbed-set>input:nth-child(6):checked~.tabbed-content>.tabbed-block:nth-child(6){display:block}</style></head><body>
+<header class="top"><a class="brand" href="../"><img src="../assets/agentbridge-icon.svg" alt="">AgentBridge</a>
+<nav><a href="index.html">Docs</a><a href="https://github.com/guna81/agent-bridge/releases/latest">Releases</a><a href="https://github.com/guna81/agent-bridge">GitHub</a></nav></header>
+<div class="layout"><aside class="side" aria-label="Documentation"><a href="index.html">Overview</a><h4>Getting started</h4><a href="install.html">Install</a><a href="quickstart.html">Quick start</a><a href="cli.html">Command line</a><h4>Using the app</h4><a href="dashboard.html">Dashboard</a><a href="subscription-usage.html">Subscription usage</a><a href="status-indicator.html">Status indicator</a><a href="skills-and-instructions.html" class=on>Skills and instructions</a><a href="providers.html">Providers</a><a href="models.html">Models</a><h4>API and gateway</h4><a href="api.html">API reference</a><a href="keys-and-users.html">Keys, users and budgets</a><a href="raw-vs-agent-mode.html">Raw vs agent mode</a><h4>Reference and operations</h4><a href="configuration.html">Configuration</a><a href="security.html">Security</a><a href="deployment.html">Deployment</a><a href="troubleshooting.html">Troubleshooting</a><a href="releases.html">Releases</a></aside>
+<main><h1 id="skills-and-instructions">Skills and instructions</h1>
+<p>Manage shared skills and global instructions for <strong>Claude Code</strong>, <strong>Codex</strong>, and <strong>Antigravity</strong> from one folder in the dashboard.</p>
+<h2 id="where-files-live">Where files live</h2>
+<p>AgentBridge reads from a single skills folder with this layout:</p>
+<pre class="highlight"><code class="language-text">&lt;skills-folder&gt;/
+├── instructions/
+│   ├── global.md          # Every agent gets this
+│   ├── claude.md          # Extra instructions for Claude Code
+│   ├── codex.md           # Extra instructions for Codex
+│   └── agy.md             # Extra instructions for Antigravity
+├── skills/
+│   └── &lt;name&gt;/
+│       └── SKILL.md       # Shared skill (YAML frontmatter: name, description)
+└── claude-agents/
+    └── &lt;name&gt;.md          # Claude Code subagent wrapper pointing at a SKILL.md</code></pre>
+<p>The folder is always <code>~/.agentbridge/agents</code> (or <code>$AGENTBRIDGE_HOME/agents</code>), created on first use. It can't be changed from the dashboard, so an installed AgentBridge and a dev server on the same machine edit the same skills and instructions.</p>
+<h2 id="instructions">Instructions</h2>
+<p>Open <strong>Instructions</strong> to write rules every agent should follow once (<code>global.md</code>), plus optional per-agent additions (<code>claude.md</code>, <code>codex.md</code>, <code>agy.md</code>) appended after the global instructions.</p>
+<p>When you click <strong>Link to agents</strong>, AgentBridge writes each agent's combined instructions into its global instructions file inside a marked block:</p>
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Target file</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td><code>~/.claude/CLAUDE.md</code></td>
+</tr>
+<tr>
+<td>Codex</td>
+<td><code>~/.codex/AGENTS.md</code> (or <code>$CODEX_HOME/AGENTS.md</code>)</td>
+</tr>
+<tr>
+<td>Antigravity</td>
+<td><code>~/.gemini/GEMINI.md</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Your own text is preserved.</strong> AgentBridge only touches content between <code>&lt;!-- BEGIN AgentBridge instructions ... --&gt;</code> and <code>&lt;!-- END AgentBridge instructions --&gt;</code>.</li>
+<li><strong>Automatic updates after linking.</strong> Once an agent is linked, saving an edit to <code>global.md</code> or that agent's file updates its block automatically.</li>
+<li><strong>Hand-edit protection.</strong> If you edit the AgentBridge block directly in <code>CLAUDE.md</code>, <code>AGENTS.md</code>, or <code>GEMINI.md</code>, AgentBridge detects the change and skips overwriting it until you move your edits into the dashboard and click <strong>overwrite the block</strong>.</li>
+<li><strong>Empty instructions never replace a block.</strong> If the instructions here are empty, <strong>Link</strong> is hidden and AgentBridge leaves any existing block alone. Use <strong>Unlink</strong> to remove it.</li>
+<li><strong>Blocks from another folder.</strong> If a block was written from a different instructions folder (for example, the dev server and an installed AgentBridge on one machine), the agent shows <strong>linked from another folder</strong> and names that folder. Linking from here replaces that block.</li>
+<li><strong>Unlinking.</strong> Click <strong>Unlink</strong> next to any agent to strip only the AgentBridge block and leave the rest of the file unchanged.</li>
+</ul>
+<h2 id="skills">Skills</h2>
+<p>Open <strong>Skills</strong> to create, validate, edit, and link reusable <code>SKILL.md</code> skills and Claude Code subagent wrappers.</p>
+<ul>
+<li><strong>New skill:</strong> creates <code>skills/&lt;name&gt;/SKILL.md</code> from a template, optionally creates a <code>claude-agents/&lt;wrapper&gt;.md</code> wrapper with an optional <code>tools:</code> list, and can link everything immediately.</li>
+<li><strong>Live checks:</strong> validates YAML frontmatter (<code>name</code> matching the folder, <code>description</code> length and trigger guidance), warns when a skill name clashes with a Claude Code built-in slash command, flags a skill that no Claude Code wrapper points at, and checks that wrappers point to an existing absolute <code>SKILL.md</code> path.</li>
+<li><strong>Link to agents:</strong> symlinks every skill and wrapper into each agent so saved edits reach all of them at once:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Symlink location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code skills</td>
+<td><code>~/.claude/skills/&lt;name&gt;</code></td>
+</tr>
+<tr>
+<td>Codex skills</td>
+<td><code>~/.codex/skills/&lt;name&gt;</code> (or <code>$CODEX_HOME/skills/&lt;name&gt;</code>)</td>
+</tr>
+<tr>
+<td>Antigravity skills</td>
+<td><code>~/.gemini/config/skills/&lt;name&gt;</code></td>
+</tr>
+<tr>
+<td>Claude Code wrappers</td>
+<td><code>~/.claude/agents/&lt;name&gt;.md</code></td>
+</tr>
+</tbody>
+</table>
+<p>Existing symlinks are updated, and broken links left behind by a renamed or deleted skill are removed. Real files or folders at a target path are never overwritten; AgentBridge skips them and reports the conflict.</p>
+<p>To link or unlink one skill, select it and use the buttons next to each agent:</p>
+<ul>
+<li><strong>Link</strong> or <strong>Unlink</strong> next to an agent adds or removes the link for that agent only. <strong>Relink</strong> fixes a link that points somewhere else.</li>
+<li><strong>Link to all agents</strong> and <strong>Unlink from all</strong> act on every agent at once.</li>
+<li>A wrapper has the same buttons for <code>~/.claude/agents</code>.</li>
+<li>Unlinking removes only a link that points at that skill. The skill's files stay in your skills folder, and AgentBridge never removes a real file or folder or a link to somewhere else.</li>
+<li><strong>Link to agents</strong> at the top of the page links everything again, including skills you unlinked.</li>
+</ul>
+<h2 id="editor">Editor</h2>
+<p>Both <strong>Instructions</strong> and <strong>Skills</strong> share the same editor:</p>
+<ul>
+<li>Switch between <strong>Edit</strong>, <strong>Preview</strong> (shows the combined output for per-agent instructions), and <strong>Changes</strong> (diff against disk).</li>
+<li>Press <strong>Save</strong> or <code>⌘S</code> / <code>Ctrl+S</code> to write changes, or <strong>Revert</strong> to drop them. Unsaved drafts stay in memory while you switch dashboard sections.</li>
+<li>If a file changes on disk while you have unsaved edits, saving is blocked so external changes aren't overwritten.</li>
+</ul><div class="pager"><span>← <a href="status-indicator.html">Status indicator</a></span><span><a href="providers.html">Providers</a> →</span></div></main></div>
+<footer>AgentBridge is open source under the MIT license.</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.className='copy';b.textContent='Copy';b.onclick=function(){navigator.clipboard.writeText(p.innerText.replace(/Copy$/,'').trimEnd()).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)})};p.appendChild(b)})</script>
+</body></html>
