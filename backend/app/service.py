@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, replace
-from typing import AsyncIterator
+from pathlib import Path
+from typing import AsyncIterator, Literal
 
 import httpx
 
@@ -32,6 +33,8 @@ class ServiceState:
 async def run_chat(
     state: ServiceState, provider: Provider, user_id: int | None, req: NormalizedRequest, request_id: str,
     *, raw_sink: list[str] | None = None, key_id: int | None = None, budget_cap: float | None = None,
+    workdir_override: Path | None = None, mode_override: Literal["raw", "agent"] | None = None,
+    project_id: int | None = None,
 ) -> AsyncIterator[Event]:  # fmt: skip
     """Yield TextDelta / Usage / Done / Error. ToolEvents never leave this function.
 
@@ -74,7 +77,8 @@ async def run_chat(
                     stream_direct(provider.kind, req, api_key=api_key or "", system_default=provider.raw_system_prompt,
                                   extra=provider.extra or {}, timeout=s.request_timeout_s, transport=state.direct_transport)
                     if provider.backend == "direct"
-                    else _cli_events(provider, user_id or 0, req, api_key, budget, raw_sink)
+                    else _cli_events(provider, user_id or 0, req, api_key, budget, raw_sink,
+                                     workdir_override=workdir_override, mode_override=mode_override)
                 )  # fmt: skip
                 try:
                     async for ev in events:
@@ -120,7 +124,8 @@ async def run_chat(
                       duration_ms=int((time.monotonic() - t0) * 1000), error_code=error_code,
                       pricing_model=pricing_model if estimated else None,
                       input_rate=pricing_rate(pricing_model, rates)[0] if estimated else None,
-                      output_rate=pricing_rate(pricing_model, rates)[1] if estimated else None)  # fmt: skip
+                      output_rate=pricing_rate(pricing_model, rates)[1] if estimated else None,
+                      project_id=project_id)  # fmt: skip
         metrics.observe_request(provider.name, req.model, status, in_tok, out_tok, cost, time.monotonic() - t0)
         log("chat.finished", request_id=request_id, user_id=user_id, model=model_label, status=status,
             input_tokens=in_tok, output_tokens=out_tok, cost_usd=round(cost, 6), estimated=estimated,
@@ -140,17 +145,24 @@ def _supports_images(provider: Provider) -> bool:
         return False
 
 
-async def _cli_events(provider: Provider, user_id: int, req: NormalizedRequest, api_key: str | None, budget: float,
-                      raw_sink: list[str] | None) -> AsyncIterator[Event]:  # fmt: skip
+async def _cli_events(
+    provider: Provider, user_id: int, req: NormalizedRequest, api_key: str | None, budget: float,
+    raw_sink: list[str] | None, *, workdir_override: Path | None = None,
+    mode_override: Literal["raw", "agent"] | None = None,
+) -> AsyncIterator[Event]:  # fmt: skip
     s = get_settings()
     adapter = new_adapter(provider.kind)
+    effective_mode: Literal["raw", "agent"] = mode_override or provider.mode  # type: ignore[assignment]
     with fresh_workdir() as tmp:
         home = host_home() if provider.use_host_home else str(user_home(provider.name, user_id))
-        from pathlib import Path
 
-        # Agent mode may be pinned to a real project directory (provider.extra["workdir"]) so an agent can work on
-        # a codebase across requests. Raw mode always gets the throwaway temp dir.
-        project = (provider.extra or {}).get("workdir") if provider.mode == "agent" else None
+        # Agent mode may be pinned to a real project directory (workdir_override or provider.extra["workdir"])
+        # so an agent can work on a codebase across requests. Raw mode always gets the throwaway temp dir.
+        project = (
+            str(workdir_override)
+            if (workdir_override is not None and effective_mode == "agent")
+            else ((provider.extra or {}).get("workdir") if effective_mode == "agent" else None)
+        )
         if project and not Path(project).is_dir():
             yield Error(f"configured workdir {project!r} does not exist", "bad_workdir")
             return
@@ -161,10 +173,10 @@ async def _cli_events(provider: Provider, user_id: int, req: NormalizedRequest, 
             req = replace(req, system="", turns=[(first_role, f"Instructions:\n{req.system}\n\n{first_text}"), *req.turns[1:]])
         ctx = RunContext(
             scratch=tmp if project else None,
-            provider_name=provider.name, mode=provider.mode, auth_mode=provider.auth_mode,  # type: ignore[arg-type]
+            provider_name=provider.name, mode=effective_mode, auth_mode=provider.auth_mode,  # type: ignore[arg-type]
             workdir=wd, home=Path(home), binary=provider.binary_path or provider.kind,
             raw_system_prompt=provider.raw_system_prompt, api_key=api_key,
-            skip_permissions=provider.skip_permissions and provider.mode == "agent",  # never in raw mode
+            skip_permissions=provider.skip_permissions and effective_mode == "agent",  # never in raw mode
             use_host_home=provider.use_host_home, max_budget_usd=budget, extra=dict(provider.extra or {}),
         )  # fmt: skip
         if not project:

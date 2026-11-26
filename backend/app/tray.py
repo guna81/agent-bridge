@@ -89,6 +89,8 @@ class Tray:
         self.stopped = threading.Event()
         self.refresh_event = threading.Event()
         self.indicator_enabled = True
+        self.last_notif_id = 0
+        self._notifs_primed = False
         self.icon = pystray.Icon('AgentBridge', usage_icon({}), 'AgentBridge')
 
     def update(self):
@@ -97,6 +99,19 @@ class Tray:
             self.indicator_enabled = self.data.get('config', {}).get('indicator_enabled', True)
             self.icon.icon = usage_icon(self.data)
             self.icon.title = 'AgentBridge: remaining usage (top: 5h, bottom: weekly)'
+            notifs = (self.data.get('captain') or {}).get('notifications') or []
+            if not self._notifs_primed:
+                self.last_notif_id = max((n.get('id', 0) for n in notifs), default=0)
+                self._notifs_primed = True
+            else:
+                for n in notifs:
+                    nid = int(n.get('id', 0))
+                    if nid > self.last_notif_id:
+                        self.last_notif_id = nid
+                        try:
+                            self.icon.notify(n.get('body') or '', f"[{n.get('project_name', 'Captain')}] {n.get('title', 'Update')}")
+                        except Exception:
+                            pass
         except Exception:
             self.data = {}
             self.icon.title = 'AgentBridge: gateway unavailable'
@@ -148,8 +163,12 @@ class Tray:
                             interval_action(seconds),
                             checked=lambda item, value=seconds: self.data.get('config', {}).get('refresh_interval_seconds', 5) == value,
                             enabled=bool(self.data)) for seconds in (2, 5, 10, 30)]
+        cap = self.data.get('captain') or {}
+        cap_active = int(cap.get('active_missions', 0)) + int(cap.get('awaiting_approval', 0)) + int(cap.get('needs_input', 0))
+        cap_label = f'Open Captain ({cap_active} active)' if cap_active else 'Open Captain'
         items.extend([pystray.Menu.SEPARATOR, pystray.MenuItem('Providers in tray (up to 2)', pystray.Menu(*choices)),
                       pystray.MenuItem('Refresh interval', pystray.Menu(*interval_choices)),
+                      pystray.MenuItem(cap_label, lambda: webbrowser.open(BASE + '/#admin_token=' + urllib.parse.quote(TOKEN, safe='') + '&tab=captain')),
                       pystray.MenuItem('Open dashboard', lambda: webbrowser.open(BASE + '/#admin_token=' + urllib.parse.quote(TOKEN, safe=''))),
                       pystray.MenuItem('Refresh', lambda: self.update()),
                       pystray.MenuItem('Quit tray', self.quit)])

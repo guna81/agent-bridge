@@ -370,3 +370,145 @@ export interface SkillLinkResult {
   status: "linked" | "relinked" | "removed" | "unchanged" | "skipped";
   detail?: string;
 }
+
+export interface Project {
+  id: number;
+  name: string;
+  slug: string;
+  repo_path: string;
+  base_branch: string;
+  captain_provider: string;
+  captain_model: string;
+  approval_mode: "manual" | "auto";
+  allowed_providers: string[];
+  agent_roles: Record<string, string>;
+  instructions: string;
+  max_budget_usd: number | null;
+  webhook_url: string;
+  webhook_events: string[];
+  active_missions: number;
+  total_missions: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MissionTask {
+  id: number;
+  mission_id: string;
+  order_index: number;
+  title: string;
+  description: string;
+  provider_name: string;
+  model: string;
+  rationale: string;
+  status: "pending" | "queued" | "running" | "needs_input" | "completed" | "failed" | "cancelled";
+  worktree_path: string;
+  branch_name: string;
+  diff_stat: string;
+  output_text: string;
+  error: string;
+  cost_usd: number;
+  duration_ms: number | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface MissionMessage {
+  id: number;
+  mission_id: string;
+  task_id: number | null;
+  sender_type: "user" | "captain" | "agent" | "system";
+  sender_name: string;
+  channel: string;
+  kind: "order" | "plan" | "status" | "question" | "reply" | "result" | "error";
+  content: string;
+  meta: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface Mission {
+  id: string;
+  project_id: number;
+  title: string;
+  goal: string;
+  status: "planning" | "awaiting_approval" | "running" | "needs_input" | "completed" | "failed" | "cancelled";
+  captain_provider: string;
+  captain_model: string;
+  plan_summary: string;
+  final_summary: string;
+  error: string;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  tasks?: MissionTask[];
+  messages?: MissionMessage[];
+}
+
+export interface TaskDiff {
+  task_id: number;
+  branch_name: string;
+  diff_stat: string;
+  diff: string;
+  exists: boolean;
+}
+
+export interface CaptainNotification {
+  id: number;
+  kind: string;
+  project_id: number;
+  project_name: string;
+  mission_id: string;
+  task_id: number | null;
+  title: string;
+  body: string;
+  created_at: string;
+}
+
+export interface CaptainSseEvent {
+  event: string;
+  mission_id: string | null;
+  data: Record<string, unknown>;
+  ts?: string;
+}
+
+/** Subscribes to an authenticated /admin SSE endpoint using fetch + ReadableStream. */
+export async function streamAdminEvents(
+  path: string,
+  onEvent: (ev: CaptainSseEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const token = getToken();
+  const r = await fetch(`/admin${path}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "text/event-stream" },
+    signal,
+  });
+  if (!r.ok || !r.body) throw new ApiError(r.status, `SSE HTTP ${r.status}`);
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const chunk = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 2);
+      if (!chunk || chunk.startsWith(":")) continue;
+      let eventName = "message";
+      let dataStr = "";
+      for (const line of chunk.split("\n")) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+      }
+      if (!dataStr || eventName === "ready") continue;
+      try {
+        const parsed = JSON.parse(dataStr);
+        onEvent(parsed);
+      } catch {
+        /* ignore malformed SSE frame */
+      }
+    }
+  }
+}

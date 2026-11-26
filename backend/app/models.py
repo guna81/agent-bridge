@@ -90,6 +90,7 @@ class Ledger(Base):
     pricing_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     input_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     output_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
@@ -109,3 +110,85 @@ class TopUp(Base):
     amount_usd: Mapped[float] = mapped_column(Float)
     note: Mapped[str] = mapped_column(String(200), default="")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Project(Base):
+    """A local git repository workspace managed by AgentBridge Captain."""
+
+    __tablename__ = "projects"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    repo_path: Mapped[str] = mapped_column(String(1024))
+    base_branch: Mapped[str] = mapped_column(String(128), default="main")
+    captain_provider: Mapped[str] = mapped_column(String(64), default="")
+    captain_model: Mapped[str] = mapped_column(String(128), default="")
+    approval_mode: Mapped[str] = mapped_column(String(16), default="manual")  # manual | auto
+    allowed_providers: Mapped[list] = mapped_column(JSON, default=list)  # empty => all enabled
+    agent_roles: Mapped[dict] = mapped_column(JSON, default=dict)  # provider_name -> role description
+    instructions: Mapped[str] = mapped_column(Text, default="")
+    max_budget_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    webhook_url: Mapped[str] = mapped_column(Text, default="")
+    webhook_events: Mapped[list] = mapped_column(JSON, default=lambda: ["awaiting_approval", "needs_input", "completed", "failed"])
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Mission(Base):
+    """One high-level order given to a project's Captain admin agent."""
+
+    __tablename__ = "missions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200), default="")
+    goal: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="planning", index=True)
+    captain_provider: Mapped[str] = mapped_column(String(64), default="")
+    captain_model: Mapped[str] = mapped_column(String(128), default="")
+    plan_summary: Mapped[str] = mapped_column(Text, default="")
+    final_summary: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MissionTask(Base):
+    """One subtask delegated by the Captain to a connected CLI coding agent."""
+
+    __tablename__ = "mission_tasks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mission_id: Mapped[str] = mapped_column(ForeignKey("missions.id", ondelete="CASCADE"), index=True)
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text)
+    provider_name: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(128), default="")
+    rationale: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    worktree_path: Mapped[str] = mapped_column(Text, default="")
+    branch_name: Mapped[str] = mapped_column(String(160), default="")
+    diff_stat: Mapped[str] = mapped_column(Text, default="")
+    output_text: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(Text, default="")
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    started_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MissionMessage(Base):
+    """Unified communication log between user, Captain, and worker agents."""
+
+    __tablename__ = "mission_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mission_id: Mapped[str] = mapped_column(ForeignKey("missions.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("mission_tasks.id", ondelete="SET NULL"), nullable=True, index=True)
+    sender_type: Mapped[str] = mapped_column(String(16))  # user | captain | agent | system
+    sender_name: Mapped[str] = mapped_column(String(64), default="")
+    channel: Mapped[str] = mapped_column(String(24), default="dashboard")  # dashboard | cli | webhook | system
+    kind: Mapped[str] = mapped_column(String(24), default="status")  # order | plan | status | question | reply | result | error
+    content: Mapped[str] = mapped_column(Text)
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

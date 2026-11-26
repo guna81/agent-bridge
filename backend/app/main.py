@@ -17,7 +17,9 @@ from .adapters.registry import BUILTIN_PROVIDERS, DEFAULT_RAW_PROMPT
 from . import metrics
 from .api import admin, auth_ws
 from .api import anthropic as anthropic_api
+from .api import captain as captain_api
 from .api import openai as openai_api
+from .captain import CaptainOrchestrator, ChannelDispatcher, MissionEventBus
 from .config import get_settings
 from .db import init_engine, session_scope
 from .errors import ProxyError
@@ -89,11 +91,16 @@ def create_app() -> FastAPI:
         else:
             raise RuntimeError(f"unknown PROXY_QUEUE_BACKEND {s.queue_backend!r} (use local or redis)")
         app.state.service = ServiceState(queue=queue)
+        app.state.captain_bus = MissionEventBus()
+        app.state.captain_channels = ChannelDispatcher(app.state.captain_bus)
+        app.state.captain = CaptainOrchestrator(app.state.service, app.state.captain_bus, app.state.captain_channels)
         log("startup", host=s.host, port=s.port, db=s.db_url.split(":")[0], queue=s.queue_backend)
         discovery_task = asyncio.create_task(refresh_codex_models_periodically())
         try:
             yield
         finally:
+            app.state.captain_bus.close()
+            await app.state.captain.shutdown()
             discovery_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await discovery_task
@@ -136,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(openai_api.router)
     app.include_router(anthropic_api.router)
     app.include_router(admin.router)
+    app.include_router(captain_api.router)
     app.include_router(auth_ws.router)
 
     dist = s.frontend_dist

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { admin, AdminSettings, ApiError, getToken, setToken } from "./api";
+import { admin, AdminSettings, ApiError, CaptainNotification, getToken, setToken, streamAdminEvents } from "./api";
 import Overview from "./pages/Overview";
+import Captain from "./pages/Captain";
 import Providers from "./pages/Providers";
 import Keys from "./pages/Keys";
 import Playground from "./pages/Playground";
@@ -11,6 +12,7 @@ import Skills from "./pages/Skills";
 
 const PRIMARY_TABS = [
   { id: "overview", label: "Overview", icon: "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" },
+  { id: "captain", label: "Captain", icon: "M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1 14l-3-3 1.41-1.41L11 13.17l4.59-4.58L17 10l-6 6z" },
   { id: "subscription", label: "Subscription usage", icon: "M4 4h4v16H4V4zm6 5h4v11h-4V9zm6-3h4v14h-4V6z" },
   { id: "statusbar", label: "Status indicator", icon: "M4 4h16v4H4V4zm0 6h16v10H4V10zm3 3v4h2v-4H7zm4 2v2h2v-2h-2zm4-3v5h2v-5h-2z" },
   { id: "instructions", label: "Instructions", icon: "M4 3h11l5 5v13H4V3zm10 1.5V9h4.5L14 4.5zM7 12v2h10v-2H7zm0 4v2h7v-2H7z" },
@@ -35,8 +37,9 @@ const ALL_TABS = [...PRIMARY_TABS, ...CLI_PROXY_TABS] as const;
 // Remove it before rendering or making requests.
 const fragment = new URLSearchParams(window.location.hash.slice(1));
 const launchToken = fragment.get("admin_token");
+const launchTab = fragment.get("tab") || "overview";
 if (launchToken) {
-  history.replaceState(null, "", `${location.pathname}${location.search}#overview`);
+  history.replaceState(null, "", `${location.pathname}${location.search}#${launchTab}`);
   setToken(launchToken);
 }
 
@@ -77,10 +80,12 @@ export default function App() {
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [error, setError] = useState("");
   const [update, setUpdate] = useState<{ current: string; latest: string | null; available: boolean; release_url: string } | null>(null);
+  const [captainUnread, setCaptainUnread] = useState(0);
   const { isDark, toggle } = useTheme();
 
   const setTab = useCallback((t: Tab) => {
     setTabState(t);
+    if (t === "captain") setCaptainUnread(0);
     history.replaceState(null, "", `#${t}`);
     window.scrollTo(0, 0);
   }, []);
@@ -121,6 +126,33 @@ export default function App() {
     const timer = setInterval(check, 60 * 60 * 1000);
     return () => clearInterval(timer);
   }, [authed]);
+
+  // Listen to global Captain notifications for browser alerts and tab badge
+  useEffect(() => {
+    if (!authed) return;
+    const ac = new AbortController();
+    const run = async () => {
+      try {
+        await streamAdminEvents(
+          "/captain/events",
+          (ev) => {
+            if (ev.event === "notification") {
+              const n = ev.data as unknown as CaptainNotification;
+              if (tab !== "captain") setCaptainUnread((c) => c + 1);
+              if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+                try {
+                  new Notification(`[${n.project_name}] ${n.title}`, { body: n.body });
+                } catch { /* ignore notification errors */ }
+              }
+            }
+          },
+          ac.signal,
+        );
+      } catch { /* aborted or disconnected */ }
+    };
+    void run();
+    return () => ac.abort();
+  }, [authed, tab]);
 
   if (checking) return <div className="splash">Loading…</div>;
 
@@ -175,6 +207,7 @@ export default function App() {
                   <path d={t.icon} />
                 </svg>
                 <span>{t.label}</span>
+                {t.id === "captain" && captainUnread > 0 && <span className="nav-badge">{captainUnread}</span>}
               </button>
             </div>
           ))}
@@ -210,6 +243,7 @@ export default function App() {
       <main className="content">
         {update?.available && <div className="note update-notice" role="status"><div><strong>AgentBridge {update.latest} is available</strong><p className="small">You are running {update.current}. Run agentbridge update, then restart AgentBridge to use the new version.</p></div><a href={update.release_url} target="_blank" rel="noopener noreferrer">View release and install instructions ↗</a></div>}
         {tab === "overview" && settings && <Overview settings={settings} go={setTab} />}
+        {tab === "captain" && <Captain go={setTab} />}
         {tab === "subscription" && <SubscriptionUsage go={setTab} />}
         {tab === "providers" && settings && <Providers settings={settings} />}
         {tab === "keys" && <Keys go={setTab} />}

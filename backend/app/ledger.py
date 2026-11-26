@@ -92,7 +92,8 @@ def release_reservation(request_id: str) -> bool:
 def record(*, user_id: int | None, request_id: str, provider: str, model: str, input_tokens: int, output_tokens: int,
            cost_usd: float, estimated: bool, status: str, key_id: int | None = None,
            duration_ms: int | None = None, error_code: str | None = None, pricing_model: str | None = None,
-           input_rate: float | None = None, output_rate: float | None = None) -> None:  # fmt: skip
+           input_rate: float | None = None, output_rate: float | None = None,
+           project_id: int | None = None) -> None:  # fmt: skip
     """Append a ledger row and decrement the user's balance in the same transaction.
 
     user_id=None is an admin test run: it is logged for visibility but nobody is charged.
@@ -101,7 +102,8 @@ def record(*, user_id: int | None, request_id: str, provider: str, model: str, i
         s.add(Ledger(request_id=request_id, user_id=user_id, key_id=key_id, provider=provider, model=model,
                      input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd,
                      estimated=estimated, status=status, duration_ms=duration_ms, error_code=error_code,
-                     pricing_model=pricing_model, input_rate=input_rate, output_rate=output_rate))  # fmt: skip
+                     pricing_model=pricing_model, input_rate=input_rate, output_rate=output_rate,
+                     project_id=project_id))  # fmt: skip
         if user_id is not None:
             s.execute(update(User).where(User.id == user_id).values(credits_usd=User.credits_usd))
         reservation = s.get(Reservation, request_id)

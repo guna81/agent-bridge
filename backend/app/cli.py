@@ -429,6 +429,118 @@ def uninstall_cli(purge=False):
         print(f"Source checkout retained at {ROOT}.")
 
 
+def _admin_request(port: int, token: str, method: str, path: str, body: dict | None = None):
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {"Authorization": f"Bearer {token}"}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/admin{path}", data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8", errors="replace").strip()
+            if not raw:
+                raise RuntimeError(
+                    f"AgentBridge gateway at http://127.0.0.1:{port} returned an empty response. "
+                    "Run 'agentbridge status' or restart it with 'agentbridge stop && agentbridge start'."
+                )
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                raise RuntimeError(
+                    f"Unexpected non-JSON response from http://127.0.0.1:{port}/admin{path}. "
+                    "Make sure AgentBridge is running on this port ('agentbridge status')."
+                ) from None
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        try:
+            msg = json.loads(detail).get("error", {}).get("message", detail)
+        except ValueError:
+            msg = detail or exc.reason
+        raise RuntimeError(f"API error ({exc.code}): {msg}") from None
+    except (urllib.error.URLError, TimeoutError) as exc:
+        reason = getattr(exc, "reason", exc)
+        raise RuntimeError(
+            f"Could not reach AgentBridge gateway at http://127.0.0.1:{port} ({reason}). "
+            "Run 'agentbridge status' or 'agentbridge start'."
+        ) from None
+
+
+def captain_command(args) -> None:
+    info = state()
+    if not info:
+        raise RuntimeError("Start AgentBridge first with 'agentbridge start'.")
+    port = info["port"]
+    token = credentials()["admin_token"]
+    projects = _admin_request(port, token, "GET", "/projects")
+    repo_dir = Path(args.repo).expanduser().resolve() if args.repo else Path.cwd().resolve()
+
+    project = None
+    if args.project:
+        project = next((p for p in projects if p["slug"] == args.project or p["name"].lower() == args.project.lower()), None)
+        if not project:
+            raise RuntimeError(f"Project {args.project!r} not found.")
+    else:
+        for p in projects:
+            rp = Path(p["repo_path"]).resolve()
+            if repo_dir == rp or rp in repo_dir.parents:
+                project = p
+                break
+
+    if args.goal in (None, "status"):
+        if not projects:
+            print("No Captain projects registered yet. Run: agentbridge captain \"<order>\" inside a git repo.")
+            return
+        targets = [project] if project else projects
+        for p in targets:
+            print(f"[{p['slug']}] {p['name']} ({p['repo_path']})")
+            missions = _admin_request(port, token, "GET", f"/projects/{p['id']}/missions?limit=5")
+            if not missions:
+                print("  No missions yet.")
+            for m in missions:
+                print(f"  - {m['id']} [{m['status']}] {m['title']}")
+        return
+
+    if not project:
+        print(f"Registering {repo_dir} as Captain project '{repo_dir.name}'...")
+        project = _admin_request(port, token, "POST", "/projects", {"name": repo_dir.name, "repo_path": str(repo_dir)})
+
+    mission = _admin_request(port, token, "POST", f"/projects/{project['id']}/missions", {"goal": args.goal, "channel": "cli"})
+    mid = mission["id"]
+    print(f"Mission {mid} started in project '{project['name']}' (Captain: {mission['captain_provider']}). Planning...")
+
+    approved = False
+    while True:
+        time.sleep(1.5)
+        cur = _admin_request(port, token, "GET", f"/missions/{mid}")
+        st = cur["status"]
+        if st == "awaiting_approval" and not approved:
+            print(f"\nPlan ready: {cur['title']}")
+            if cur.get("plan_summary"):
+                print(cur["plan_summary"])
+            for i, t in enumerate(cur.get("tasks") or [], 1):
+                print(f"  {i}. {t['title']} -> {t['provider_name']}/{t['model']}")
+            if args.auto:
+                ans = "y"
+            else:
+                ans = input("\nApprove and run tasks? [y/N]: ").strip().lower()
+            if ans in ("y", "yes"):
+                _admin_request(port, token, "POST", f"/missions/{mid}/approve", {})
+                approved = True
+                print("Approved. Running tasks...")
+            else:
+                _admin_request(port, token, "POST", f"/missions/{mid}/cancel", {})
+                print("Mission cancelled.")
+                return
+        elif st in ("completed", "failed", "cancelled", "needs_input"):
+            print(f"\nMission {mid} finished with status: {st}")
+            if cur.get("final_summary"):
+                print("\n" + cur["final_summary"])
+            for t in cur.get("tasks") or []:
+                branch = f" (branch: {t['branch_name']})" if t.get("branch_name") else ""
+                print(f"  - [{t['status']}] {t['title']} [{t['provider_name']}]{branch}")
+            return
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="agentbridge",
@@ -446,7 +558,7 @@ Documentation: https://github.com/guna81/agent-bridge#readme""",
     from app.updates import VERSION, check_update
     parser.add_argument("--version", action="version", version=f"AgentBridge {VERSION}" + (" (development)" if not FROZEN else ""))
     sub = parser.add_subparsers(dest="command", required=True, title="commands",
-                                metavar="{start,stop,status,dashboard,autostart,update,uninstall}")
+                                metavar="{start,stop,status,dashboard,captain,autostart,update,uninstall}")
     start_parser = sub.add_parser("start", help="start the gateway and status indicator",
         description="Start the local gateway and menu bar or system tray indicator in the background.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -492,6 +604,12 @@ Examples:
 
 Treat the admin token as a secret. --show-token prints it for manual sign-in.""")
     dashboard_parser.add_argument("--show-token", action="store_true", help="print the admin token for manual sign-in")
+    captain_parser = sub.add_parser("captain", help="give an order to the project Captain admin agent",
+        description="Send an order to AgentBridge Captain for the current git repository (or a named project) and stream progress.")
+    captain_parser.add_argument("goal", nargs="?", default=None, help="order for the Captain, or 'status' to list recent missions")
+    captain_parser.add_argument("--project", default=None, help="project slug or name (default: match current directory)")
+    captain_parser.add_argument("--repo", default=None, help="repository path (default: current directory)")
+    captain_parser.add_argument("--auto", action="store_true", help="automatically approve the Captain's proposed plan")
     # Internal subprocess commands remain callable but are omitted from public help.
     sub.add_parser("_serve")
     sub.add_parser("_tray")
@@ -529,6 +647,8 @@ Treat the admin token as a secret. --show-token prints it for manual sign-in."""
             url = f"http://127.0.0.1:{info['port']}/#admin_token={urllib.parse.quote(token, safe='')}"
             if not webbrowser.open(url):
                 raise RuntimeError("Could not open a browser. Run 'agentbridge dashboard --show-token' to sign in manually.")
+        elif args.command == "captain":
+            captain_command(args)
         elif args.command == "_tray":
             from app.tray import Tray
             Tray().run()

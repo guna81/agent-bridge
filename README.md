@@ -66,6 +66,8 @@ agentbridge autostart status      # check startup at user login
 agentbridge autostart enable      # start automatically when you sign in
 agentbridge autostart disable     # turn automatic startup off
 agentbridge dashboard             # open the signed-in dashboard
+agentbridge captain "Add tests"   # send an order to the current repo's Captain agent
+agentbridge captain status        # list recent Captain missions
 agentbridge --version             # installed version
 agentbridge update                # install the latest stable release
 agentbridge uninstall             # stop and remove the installation; keep user data
@@ -86,6 +88,7 @@ The indicator shows remaining capacity: its bars shrink as usage increases. The 
 
 ## Features
 
+- **Captain (project-scoped multi-agent orchestration)**: register local git repositories as projects, give orders to an admin Captain agent that delegates subtasks across connected CLIs using live subscription quotas, runs each worker in an isolated `git worktree`, and notifies via Dashboard SSE, browser/tray alerts, outbound webhooks (Slack/Discord/ntfy/JSON), and `agentbridge captain`.
 - **Subscription usage**: view available 5-hour and weekly limits and reset times for supported providers.
 - **Shared skills and instructions**: edit global and per-agent instructions and `SKILL.md` files in one place, validate them, apply marked instruction blocks, and symlink skills into Claude Code, Codex, and Antigravity.
 - **Local CLI proxy**: OpenAI-compatible `/v1/chat/completions` and Anthropic-compatible `/v1/messages`, including streaming.
@@ -100,8 +103,8 @@ Requests run provider CLIs as subprocesses and charge applicable gateway usage t
 
 These are future plans, not available features:
 
-- **Multi-agent orchestration**: a master agent that coordinates and delegates work to other agents, such as Claude and Gemini, and brings their results together.
 - **LLM router**: route tasks to an appropriate model based on their complexity, with the aim of balancing capability, speed, and cost.
+- **Two-way chat channels & MCP bridge**: interactive Slack/Telegram replies and exposing Captain's task bus as an MCP server.
 
 ## Install from source
 

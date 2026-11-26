@@ -41,7 +41,7 @@ trap cleanup INT TERM EXIT
 unset VIRTUAL_ENV
 
 (cd "$root/backend" && exec "$py" -m uvicorn app.main:app --reload --reload-dir app \
-  --host 127.0.0.1 --port "$port" --proxy-headers 2>&1 | sed -u 's/^/[api] /') &
+  --host 127.0.0.1 --port "$port" --proxy-headers --timeout-graceful-shutdown 2 2>&1 | sed -u 's/^/[api] /') &
 pids+=($!)
 
 (cd "$root/frontend" && VITE_BACKEND="http://127.0.0.1:$port" exec npm run dev -- --port "$ui_port" --strictPort 2>&1 | sed -u 's/^/[ui]  /') &

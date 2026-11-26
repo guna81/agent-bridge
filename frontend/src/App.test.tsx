@@ -17,10 +17,12 @@ vi.mock("./api", () => {
     },
     getToken: vi.fn(() => token),
     setToken: vi.fn((next: string) => { token = next; }),
+    streamAdminEvents: vi.fn(() => new Promise(() => {})),
   };
 });
 
 vi.mock("./pages/Overview", () => ({ default: () => <div>Overview page</div> }));
+vi.mock("./pages/Captain", () => ({ default: () => <div>Captain page</div> }));
 vi.mock("./pages/Providers", () => ({ default: () => <div>Providers page</div> }));
 vi.mock("./pages/Keys", () => ({ default: ({ usageOnly }: { usageOnly?: boolean }) => <div>{usageOnly ? "Request usage page" : "Keys & users page"}</div> }));
 vi.mock("./pages/Playground", () => ({ default: () => <div>Playground page</div> }));

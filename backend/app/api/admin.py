@@ -265,6 +265,8 @@ def get_status_bar_data(request: Request):
     cli_limits = get_all_cli_rate_limits()
     cfg = load_status_bar_config()
     with session_scope() as sess:
+        from ..models import Mission
+
         providers = list(sess.scalars(select(Provider).order_by(Provider.id)))
         provider_list = []
         for p in providers:
@@ -281,7 +283,11 @@ def get_status_bar_data(request: Request):
                 "max_budget_usd": p.max_budget_usd,
                 **p_stat,
             })
+        active_missions = len(list(sess.scalars(select(Mission.id).where(Mission.status.in_(("planning", "running"))))))
+        awaiting_approval = len(list(sess.scalars(select(Mission.id).where(Mission.status == "awaiting_approval"))))
+        needs_input = len(list(sess.scalars(select(Mission.id).where(Mission.status == "needs_input"))))
 
+    captain_bus = getattr(request.app.state, "captain_bus", None)
     return {
         "online": True,
         "port": s.port,
@@ -291,6 +297,12 @@ def get_status_bar_data(request: Request):
         "credits_remaining_usd": stats["credits_remaining_usd"],
         "rate_limits": cli_limits,
         "config": cfg.model_dump(),
+        "captain": {
+            "active_missions": active_missions,
+            "awaiting_approval": awaiting_approval,
+            "needs_input": needs_input,
+            "notifications": captain_bus.recent_notifications() if captain_bus else [],
+        },
     }
 
 
